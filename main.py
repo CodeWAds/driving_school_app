@@ -1,89 +1,8 @@
 from PyQt6.QtWidgets import QApplication, QLabel, QLineEdit, QMainWindow, QStackedWidget, QVBoxLayout, QWidget, QPushButton, QHBoxLayout, QSpacerItem, QSizePolicy
 from PyQt6.QtGui import QIcon
 from PyQt6.QtCore import Qt
+from settings import ResizableWidget
 import sys
-
-
-class ResizableWidget(QWidget):
-    def __init__(self):
-        super().__init__()
-        self.buttons = []
-
-    def updateFont(self):
-        width = self.width()
-        font_size = max(10, min(width // 50, 20))
-
-        self.setStyleSheet(f"""
-            QMainWindow {{background-color: #F0F4F8;}}               
-            
-            QLabel {{
-                font-size: {font_size*1.1}px;
-                color: black;
-            }}
-
-            QLabel#label_vhod {{
-                font-weight: bold;
-                font-size: {font_size * 2}px; 
-            }}
-
-            QPushButton {{
-                background-color: #4A90E2;
-                color: #FFFFFF;
-                padding: 10px;
-                border-radius: 0px;
-                font-size: {font_size}px;
-                border-right: 1px solid white;
-                }}
-            QPushButton:hover {{
-                background-color: #2767f2;
-                color: #FFFFFF;
-                padding: 10px;
-                border-radius: 0px;
-            }}
-
-            QLineEdit {{
-                font-size: {font_size}px;
-                padding: 10px;
-                font-weight: bold;
-                background-color: #81b7f7;
-                border: none; border-radius: 15px;
-                color: #FFFFFF;
-            }}          
-        """)
-
-        for button in self.buttons:
-            button.setStyleSheet(f"""
-                QPushButton {{
-                    background-color: #4A90E2;
-                    color: #FFFFFF;
-                    padding: 10px; 
-                    border-radius: 0px;
-                    font-size: {font_size}px;
-                    border-right: 1px solid white; 
-                }}
-                QPushButton:hover {{
-                    background-color: #2767f2;
-                    color: #FFFFFF; 
-                    padding: 10px; 
-                    border-radius: 0px;
-                }}
-                QPushButton:checked {{
-                    background-color: #2767f2;
-                    color: #FFFFFF; 
-                }}
-            """)
-            button.setEnabled(True)
-            button.setCursor(Qt.CursorShape.PointingHandCursor)
-
-        if self.buttons:
-            # Убираем правую границу у последней кнопки
-            self.buttons[-1].setStyleSheet(self.buttons[-1].styleSheet().replace(
-                "border-right: 1px solid white;", ""))
-
-    def resizeEvent(self, event):
-        """Обработчик события изменения размера окна."""
-        self.updateFont()
-        super().resizeEvent(event)
 
 
 class MainWindow(QMainWindow, ResizableWidget):
@@ -109,30 +28,45 @@ class MainWindow(QMainWindow, ResizableWidget):
 
         self.titles_buttons = [
             "Главная", "Курсанты", "Инструкторы", "Автомобили", "Занятия", "Платежи", "Отчет"]
-
+    
         for name in self.titles_buttons:
             button = QPushButton(self)
             button.setText(f"{name}")
             button.setCheckable(True)  # Делаем кнопку переключаемой
             self.menu_h_layout.addWidget(button)
+            button.setEnabled(False) 
             self.buttons.append(button)
+            button.clicked.connect(self.on_button_clicked)
+        
+        
+        self.buttons[0].setChecked(True)
+
 
         self.menu_h_layout.setSpacing(0)
         self.menu_v_layout.setContentsMargins(0, 0, 0, 0)
 
         self.menu_v_layout.addLayout(self.menu_h_layout)
 
-        self.stack.addWidget(LoginPage())
+        self.stack.addWidget(LoginPage(self.stack, self.buttons))
         self.menu_v_layout.addWidget(self.stack)
 
         self.central_widget.setLayout(self.menu_v_layout)
 
-        self.updateFont()  # Обновляем шрифты при загрузке окна
+        self.updateStyles()  # Обновляем стили при загрузке окна
 
+
+    def on_button_clicked(self):
+        for button in self.buttons:
+            button.setChecked(False)
+        sender = self.sender()  # Получаем кнопку, которая вызвала сигнал
+        if sender:
+            sender.setChecked(True)
 
 class LoginPage(ResizableWidget):
-    def __init__(self):
+    def __init__(self, stack, buttons):
         super().__init__()
+        self.stack = stack
+        self.buttons = buttons
         self.create_page()
 
     def create_page(self):
@@ -153,6 +87,7 @@ class LoginPage(ResizableWidget):
         self.login_input = QLineEdit()
         self.passwd_input = QLineEdit()
         self.button_vhod = QPushButton("Войти")
+        self.button_vhod.setCursor(Qt.CursorShape.PointingHandCursor)
         self.passwd_input.setEchoMode(QLineEdit.EchoMode.Password)
         self.vhod_layout = QHBoxLayout()
         self.vhod_layout.addItem(spacerItem1)
@@ -176,12 +111,27 @@ class LoginPage(ResizableWidget):
         self.vhod_layout.addItem(spacerItem1)
         self.setLayout(self.menu_v_layout)
 
-        self.updateFont()
+        self.button_vhod.clicked.connect(self.vhod)
+
+        self.updateStyles()
+    
+    def vhod(self):
+        self.login = self.login_input.text()
+        self.passwd = self.passwd_input.text()
+        if self.login == "admin" and self.passwd == "admin":
+            main_widget = MainPage(self.stack, self.buttons)
+            self.stack.addWidget(main_widget)
+            self.stack.setCurrentWidget(main_widget)
+
+            for button in self.buttons:
+                button.setEnabled(True)
 
 
 class MainPage(QWidget):
-    def __init__(self):
+    def __init__(self, stack, buttons):
         super().__init__()
+        self.stack = stack
+        self.buttons = buttons
 
 
 class CadTeachPayCarPage(QWidget):
