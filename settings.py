@@ -97,14 +97,39 @@ class Settings():
             connection = pymysql.connect(
                 host='150.241.90.210',
                 user='mainuser',
-                password='VeCrk135Ne!',
+                password='VeCrk135NeN!',
                 database='f1030472_autoschool',
                 cursorclass=pymysql.cursors.DictCursor
             )
-            if connection:
-                print("Successfully connected...")
             return connection
             
         except Exception as ex:
-            print("Connection error: ", ex)
+            return False
+
+    def find_user_by_login(self,login):
+        connection = self.connect_to_db()
+        if not connection:
+            return None
+
+        try:
+            with connection.cursor() as cursor:
+                sql = "SELECT * FROM user WHERE login = %s"
+                cursor.execute(sql, (login))
+                user = cursor.fetchone()
+            return user
+
+        except Exception as ex:
+            return None
+        finally:
+            connection.close()
+
+    def check_passwd(self):
+        user = self.find_user_by_login(self.login)
+        if user:
+            stored_password = user['password']
+            if bcrypt.checkpw(self.passwd.encode('utf-8'), stored_password.encode('utf-8')):
+                return user
+            else:
+                return False
+        else:
             return False

@@ -119,26 +119,27 @@ class LoginPage(ResizableWidget, Settings):
 
         self.updateStyles()
 
-    
 
     def vhod(self):
         self.login = self.login_input.text()
         self.passwd = self.passwd_input.text()
 
         # тут надо сделать проверку логина и пароля
-        
-        if self.login == "admin" and self.passwd == "admin":
-            # Нужно будет сделать передачу значения role в классы  
-            global role 
-            role = "admin"
-            main_widget = MainPage(self.stack, self.buttons)
-            self.stack.addWidget(main_widget)
-            self.stack.setCurrentWidget(main_widget)
+        if self.connect_to_db():
+            global user
+            user = self.check_passwd()
+            if user:
+                main_widget = MainPage(self.stack, self.buttons)
+                self.stack.addWidget(main_widget)
+                self.stack.setCurrentWidget(main_widget)
 
-            for button in self.buttons:
-                button.setEnabled(True)
+                for button in self.buttons:
+                    button.setEnabled(True)
+            else:
+                self.show_error_message("Ошибка", "Неверный логин или пароль")
         else:
-            self.show_error_message("Ошибка", "Неверный логин или пароль")
+            self.show_error_message("Ошибка", "Ошибка подключения к БД")
+
 
     def show_error_message(self, title, message):
         error_dialog = QMessageBox()
@@ -149,19 +150,20 @@ class LoginPage(ResizableWidget, Settings):
         error_dialog.exec()
 
 
+
 class MainPage(QWidget):
     def __init__(self, stack, buttons):
         super().__init__()
         self.stack = stack
         self.buttons = buttons
-        if role == "admin":
+        if 1:
             self.create_page_admin()
         else:
             self.create_page_manager()
     
     def create_page_admin(self):
         self.menu_v_layout = QVBoxLayout()
-        self.label_vhod = QLabel(role)
+        self.label_vhod = QLabel(user['name'] + " " + user['patronymic'])
         self.menu_v_layout.addWidget(self.label_vhod)
         self.setLayout(self.menu_v_layout)
 
