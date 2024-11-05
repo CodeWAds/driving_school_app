@@ -1,7 +1,8 @@
-from PyQt6.QtWidgets import QApplication, QLabel, QLineEdit, QMainWindow, QStackedWidget, QVBoxLayout, QWidget, QPushButton, QHBoxLayout, QSpacerItem, QSizePolicy
+from PyQt6.QtWidgets import QApplication, QLabel, QLineEdit,QMessageBox, QMainWindow, QStackedWidget, QVBoxLayout, QWidget, QPushButton, QHBoxLayout, QSpacerItem, QSizePolicy
 from PyQt6.QtGui import QIcon
 from PyQt6.QtCore import Qt
-from settings import ResizableWidget
+
+from settings import ResizableWidget, Settings
 import sys
 
 
@@ -9,6 +10,7 @@ class MainWindow(QMainWindow, ResizableWidget):
     def __init__(self):
         QMainWindow.__init__(self)  # Вызов конструктора QMainWindow
         ResizableWidget.__init__(self)  # Вызов конструктора ResizableWidget
+
         self.stack = QStackedWidget()
 
         self.central_widget = QWidget()
@@ -53,8 +55,7 @@ class MainWindow(QMainWindow, ResizableWidget):
         self.central_widget.setLayout(self.menu_v_layout)
 
         self.updateStyles()  # Обновляем стили при загрузке окна
-
-
+        
     def on_button_clicked(self):
         for button in self.buttons:
             button.setChecked(False)
@@ -62,7 +63,7 @@ class MainWindow(QMainWindow, ResizableWidget):
         if sender:
             sender.setChecked(True)
 
-class LoginPage(ResizableWidget):
+class LoginPage(ResizableWidget, Settings):
     def __init__(self, stack, buttons):
         super().__init__()
         self.stack = stack
@@ -70,6 +71,7 @@ class LoginPage(ResizableWidget):
         self.create_page()
 
     def create_page(self):
+    
         self.menu_v_layout = QVBoxLayout()
         self.menu_h_layout = QHBoxLayout()
 
@@ -111,20 +113,40 @@ class LoginPage(ResizableWidget):
         self.vhod_layout.addItem(spacerItem1)
         self.setLayout(self.menu_v_layout)
 
+        self.login_input.returnPressed.connect(self.vhod)
+        self.passwd_input.returnPressed.connect(self.vhod)
         self.button_vhod.clicked.connect(self.vhod)
 
         self.updateStyles()
+
     
+
     def vhod(self):
         self.login = self.login_input.text()
         self.passwd = self.passwd_input.text()
+
+        # тут надо сделать проверку логина и пароля
+        
         if self.login == "admin" and self.passwd == "admin":
+            # Нужно будет сделать передачу значения role в классы  
+            global role 
+            role = "admin"
             main_widget = MainPage(self.stack, self.buttons)
             self.stack.addWidget(main_widget)
             self.stack.setCurrentWidget(main_widget)
 
             for button in self.buttons:
                 button.setEnabled(True)
+        else:
+            self.show_error_message("Ошибка", "Неверный логин или пароль")
+
+    def show_error_message(self, title, message):
+        error_dialog = QMessageBox()
+        error_dialog.setIcon(QMessageBox.Icon.Critical)
+        error_dialog.setWindowTitle(title)
+        error_dialog.setText(message)
+        error_dialog.setStandardButtons(QMessageBox.StandardButton.Ok)
+        error_dialog.exec()
 
 
 class MainPage(QWidget):
@@ -132,26 +154,58 @@ class MainPage(QWidget):
         super().__init__()
         self.stack = stack
         self.buttons = buttons
+        if role == "admin":
+            self.create_page_admin()
+        else:
+            self.create_page_manager()
+    
+    def create_page_admin(self):
+        self.menu_v_layout = QVBoxLayout()
+        self.label_vhod = QLabel(role)
+        self.menu_v_layout.addWidget(self.label_vhod)
+        self.setLayout(self.menu_v_layout)
 
+        pass
+
+    def create_page_manager(self):
+        pass
+        
+        
 
 class CadTeachPayCarPage(QWidget):
-    def __init__(self):
+    def __init__(self, stack, buttons):
         super().__init__()
+        self.stack = stack
+        self.buttons = buttons
+        self.create_page()
+    
+    def create_page(self):
+        pass
 
 
 class LessonsPage(QWidget):
-    def __init__(self):
+    def __init__(self, stack, buttons):
         super().__init__()
-
+        self.stack = stack
+        self.buttons = buttons
+        self.create_page()
+    
+    def create_page(self):
+        pass
 
 class ReportsPage(QWidget):
-    def __init__(self):
+    def __init__(self, stack, buttons):
         super().__init__()
+        self.stack = stack
+        self.buttons = buttons
+        self.create_page()
+    
+    def create_page(self):
+        pass
 
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
-
     window = MainWindow()
     window.show()
     sys.exit(app.exec())

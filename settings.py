@@ -2,6 +2,9 @@ from PyQt6.QtWidgets import QApplication, QLabel, QLineEdit, QMainWindow, QStack
 from PyQt6.QtGui import QIcon
 from PyQt6.QtCore import Qt
 import sys
+import pymysql
+import bcrypt
+
 
 class ResizableWidget(QWidget):
     def __init__(self):
@@ -74,7 +77,8 @@ class ResizableWidget(QWidget):
             button.setCursor(Qt.CursorShape.PointingHandCursor)
 
         last_button = self.buttons[-1]
-        last_button.setStyleSheet(last_button.styleSheet().replace("border-right: 1px solid white;", ""))
+        last_button.setStyleSheet(last_button.styleSheet().replace(
+            "border-right: 1px solid white;", ""))
 
     def resizeEvent(self, event):
         """Обработчик события изменения размера окна."""
@@ -82,19 +86,25 @@ class ResizableWidget(QWidget):
         super().resizeEvent(event)
 
 
-class CRUD():
+class Settings():
     def __init__(self):
         self.username = "admin"
         self.password = "admin"
-    
-    def create():
-        pass
 
-    def read():
-        pass
-
-    def update():
-        pass
-
-    def delete():
-        pass
+    def connect_to_db(self):
+        try:
+            # Установка соединения с базой данных
+            connection = pymysql.connect(
+                host='150.241.90.210',
+                user='mainuser',
+                password='VeCrk135Ne!',
+                database='f1030472_autoschool',
+                cursorclass=pymysql.cursors.DictCursor
+            )
+            if connection:
+                print("Successfully connected...")
+            return connection
+            
+        except Exception as ex:
+            print("Connection error: ", ex)
+            return False
