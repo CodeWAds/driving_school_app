@@ -50,7 +50,19 @@ class ResizableWidget(QWidget):
                 background-color: #81b7f7;
                 border: none; border-radius: 15px;
                 color: #FFFFFF;
-            }}          
+            }}        
+
+            QLabel#label_info1 {{
+                padding: 2px;
+                background-color: #81b7f7;
+            }}  
+            QLabel#label_info2 {{
+                padding: 20px;
+                background-color: #81b7f7;
+            }}
+            QListWidget {{
+                background-color: #81b7f7;
+            }}
         """)
 
         for button in self.buttons:
