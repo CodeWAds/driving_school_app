@@ -125,6 +125,8 @@ class LoginPage(ResizableWidget, Settings):
     async def vhod(self):
         self.button_vhod.setText("Подождите...")
         self.button_vhod.setEnabled(False)
+        self.login_input.returnPressed.disconnect()
+        self.passwd_input.returnPressed.disconnect()
         
         self.login = self.login_input.text()
         self.passwd = self.passwd_input.text()
@@ -141,6 +143,9 @@ class LoginPage(ResizableWidget, Settings):
         else:
             self.show_error_message("Ошибка", "Неверный логин или пароль")
             self.button_vhod.setText("Войти")
+            self.button_vhod.setEnabled(True)
+            self.login_input.returnPressed.connect(self.vhod)
+            self.passwd_input.returnPressed.connect(self.vhod)
     
 
     def show_error_message(self, title, message):

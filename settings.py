@@ -137,7 +137,7 @@ class Settings():
 
 
     async def check_passwd(self):
-        QApplication.setOverrideCursor(QCursor(Qt.CursorShape.WaitCursor))
+
         user = await self.find_user_by_login(self.login)
         
         if user:
