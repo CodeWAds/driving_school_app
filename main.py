@@ -4,7 +4,8 @@ from PyQt6.QtCore import Qt
 
 from settings import ResizableWidget, Settings
 import sys
-
+import asyncio
+from qasync import QEventLoop, asyncSlot
 
 class MainWindow(QMainWindow, ResizableWidget):
     def __init__(self):
@@ -39,8 +40,8 @@ class MainWindow(QMainWindow, ResizableWidget):
             button.setEnabled(False)
             self.buttons.append(button)
             button.clicked.connect(self.on_button_clicked)
-        
-        self.buttons[0].setEnabled(False)
+
+        self.buttons[0].setChecked(True)
 
         self.menu_h_layout.setSpacing(0)
         self.menu_v_layout.setContentsMargins(0, 0, 0, 0)
@@ -120,25 +121,27 @@ class LoginPage(ResizableWidget, Settings):
 
         self.updateStyles()
 
-    def vhod(self):
+    @asyncSlot()
+    async def vhod(self):
+        self.button_vhod.setText("Подождите...")
+        self.button_vhod.setEnabled(False)
+        
         self.login = self.login_input.text()
         self.passwd = self.passwd_input.text()
+        
+        global user
+        user = await self.check_passwd()
+        if user:
+            main_widget = MainPage(self.stack, self.buttons)
+            self.stack.addWidget(main_widget)
+            self.stack.setCurrentWidget(main_widget)
 
-        # тут надо сделать проверку логина и пароля
-        if self.connect_to_db():
-            global user
-            user = self.check_passwd()
-            if user:
-                main_widget = MainPage(self.stack, self.buttons)
-                self.stack.addWidget(main_widget)
-                self.stack.setCurrentWidget(main_widget)
-
-                for button in self.buttons:
-                    button.setEnabled(True)
-            else:
-                self.show_error_message("Ошибка", "Неверный логин или пароль")
+            for button in self.buttons:
+                button.setEnabled(True)
         else:
-            self.show_error_message("Ошибка", "Ошибка подключения к БД")
+            self.show_error_message("Ошибка", "Неверный логин или пароль")
+            self.button_vhod.setText("Войти")
+    
 
     def show_error_message(self, title, message):
         error_dialog = QMessageBox()
@@ -154,12 +157,14 @@ class MainPage(QWidget):
         super().__init__()
         self.stack = stack
         self.buttons = buttons
+        self.buttons[0].setEnabled(False)
         if user['role'] == 4:
             self.create_page_admin()
         else:
             self.create_page_manager()
 
     def create_page_admin(self):
+
         self.menu_v_layout = QVBoxLayout()
         self.menu_h_layout = QHBoxLayout()
 
@@ -262,6 +267,11 @@ class ChangePage(QWidget):
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
+    loop = QEventLoop(app)
+    asyncio.set_event_loop(loop)
+
     window = MainWindow()
     window.show()
-    sys.exit(app.exec())
+
+    with loop:
+        loop.run_forever()

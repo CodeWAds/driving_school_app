@@ -1,9 +1,10 @@
 from PyQt6.QtWidgets import QApplication, QLabel, QLineEdit, QMainWindow, QStackedWidget, QVBoxLayout, QWidget, QPushButton, QHBoxLayout, QSpacerItem, QSizePolicy
-from PyQt6.QtGui import QIcon
+from PyQt6.QtGui import QIcon, QCursor
 from PyQt6.QtCore import Qt
 import sys
 import pymysql
 import bcrypt
+import aiomysql
 
 
 class ResizableWidget(QWidget):
@@ -100,48 +101,54 @@ class ResizableWidget(QWidget):
 
 class Settings():
     def __init__(self):
-        self.username = "admin"
-        self.password = "admin"
+        pass
 
-    def connect_to_db(self):
+
+    async def connect_to_db(self):
         try:
-            # Установка соединения с базой данных
-            connection = pymysql.connect(
+            # Установка асинхронного соединения с базой данных
+            connection = await aiomysql.connect(
                 host='150.241.90.210',
                 user='mainuser',
                 password='VeCrk135NeN!',
-                database='f1030472_autoschool',
-                cursorclass=pymysql.cursors.DictCursor
+                db='f1030472_autoschool',
+                cursorclass=aiomysql.DictCursor
             )
             return connection
-            
         except Exception as ex:
-            return False
+            return None
 
-    def find_user_by_login(self,login):
-        connection = self.connect_to_db()
+
+    async def find_user_by_login(self, login):
+        connection = await self.connect_to_db()
         if not connection:
             return None
 
         try:
-            with connection.cursor() as cursor:
+            async with connection.cursor() as cursor:
                 sql = "SELECT * FROM user WHERE login = %s"
-                cursor.execute(sql, (login))
-                user = cursor.fetchone()
+                await cursor.execute(sql, (login,))
+                user = await cursor.fetchone()
             return user
-
         except Exception as ex:
             return None
         finally:
             connection.close()
 
-    def check_passwd(self):
-        user = self.find_user_by_login(self.login)
+
+    async def check_passwd(self):
+        QApplication.setOverrideCursor(QCursor(Qt.CursorShape.WaitCursor))
+        user = await self.find_user_by_login(self.login)
+        
         if user:
             stored_password = user['password']
             if bcrypt.checkpw(self.passwd.encode('utf-8'), stored_password.encode('utf-8')):
+                QApplication.restoreOverrideCursor()
                 return user
             else:
+                QApplication.restoreOverrideCursor()
                 return False
         else:
+            QApplication.restoreOverrideCursor()
             return False
+
