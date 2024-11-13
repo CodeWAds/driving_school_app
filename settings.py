@@ -106,7 +106,6 @@ class Settings():
 
     async def connect_to_db(self):
         try:
-            # Установка асинхронного соединения с базой данных
             connection = await aiomysql.connect(
                 host='150.241.90.210',
                 user='mainuser',
@@ -116,7 +115,7 @@ class Settings():
             )
             return connection
         except Exception as ex:
-            return None
+            print(ex)
 
 
     async def find_user_by_login(self, login):
@@ -143,12 +142,9 @@ class Settings():
         if user:
             stored_password = user['password']
             if bcrypt.checkpw(self.passwd.encode('utf-8'), stored_password.encode('utf-8')):
-                QApplication.restoreOverrideCursor()
                 return user
             else:
-                QApplication.restoreOverrideCursor()
                 return False
         else:
-            QApplication.restoreOverrideCursor()
             return False
 

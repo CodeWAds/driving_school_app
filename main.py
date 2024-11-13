@@ -7,6 +7,7 @@ import sys
 import asyncio
 from qasync import QEventLoop, asyncSlot
 
+
 class MainWindow(QMainWindow, ResizableWidget):
     def __init__(self):
         QMainWindow.__init__(self)  # Вызов конструктора QMainWindow
@@ -63,6 +64,22 @@ class MainWindow(QMainWindow, ResizableWidget):
         if sender:
             sender.setChecked(True)
             sender.setEnabled(False)
+
+        page_mapping = {
+            "Главная": MainPage,
+            "Курсанты": CadTeachPayCarPage,
+            "Инструкторы": CadTeachPayCarPage,
+            "Автомобили": CadTeachPayCarPage,
+            "Занятия": CadTeachPayCarPage,
+            "Платежи": CadTeachPayCarPage,
+            "Отчет": CadTeachPayCarPage
+        }
+
+        page_class = page_mapping.get(sender.text())
+        if page_class:
+            page_instance = page_class(self.stack, self.buttons)
+            self.stack.addWidget(page_instance)
+            self.stack.setCurrentWidget(page_instance)
 
 
 class LoginPage(ResizableWidget, Settings):
@@ -127,10 +144,10 @@ class LoginPage(ResizableWidget, Settings):
         self.button_vhod.setEnabled(False)
         self.login_input.returnPressed.disconnect()
         self.passwd_input.returnPressed.disconnect()
-        
+
         self.login = self.login_input.text()
         self.passwd = self.passwd_input.text()
-        
+
         global user
         user = await self.check_passwd()
         if user:
@@ -138,15 +155,14 @@ class LoginPage(ResizableWidget, Settings):
             self.stack.addWidget(main_widget)
             self.stack.setCurrentWidget(main_widget)
 
-            for button in self.buttons:
-                button.setEnabled(True)
         else:
             self.show_error_message("Ошибка", "Неверный логин или пароль")
             self.button_vhod.setText("Войти")
+            self.login_input.clear()
+            self.passwd_input.clear()
             self.button_vhod.setEnabled(True)
             self.login_input.returnPressed.connect(self.vhod)
             self.passwd_input.returnPressed.connect(self.vhod)
-    
 
     def show_error_message(self, title, message):
         error_dialog = QMessageBox()
@@ -162,7 +178,8 @@ class MainPage(QWidget):
         super().__init__()
         self.stack = stack
         self.buttons = buttons
-        self.buttons[0].setEnabled(False)
+        for button in self.buttons[1:]:
+            button.setEnabled(True)
         if user['role'] == 4:
             self.create_page_admin()
         else:
@@ -177,7 +194,7 @@ class MainPage(QWidget):
             40, 20, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding)
         spacerItem1 = QSpacerItem(
             40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
-        
+
         spacerItem2 = QSpacerItem(
             20, 40, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
 
@@ -195,7 +212,7 @@ class MainPage(QWidget):
         self.menu_v_layout.addLayout(self.menu_h_layout)
 
         self.list_widget = QListWidget()
-        
+
         self.button_add = QPushButton("Добавить")
         self.button_add.setCursor(Qt.CursorShape.PointingHandCursor)
 
@@ -222,9 +239,33 @@ class MainPage(QWidget):
 
         self.setLayout(self.menu_v_layout)
 
+        self.button_add.clicked.connect(self.add_manager)
+
+    def add_manager(self):
+        main_widget = ChangePage(self.stack, 1, self.buttons)
+        self.stack.addWidget(main_widget)
+        self.stack.setCurrentWidget(main_widget)
 
     def create_page_manager(self):
-        pass
+
+        self.menu_v_layout = QVBoxLayout()
+        self.menu_h_layout = QHBoxLayout()
+
+        spacerItem = QSpacerItem(
+            40, 20, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding)
+        spacerItem1 = QSpacerItem(
+            40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+
+        spacerItem2 = QSpacerItem(
+            20, 40, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
+
+        self.label_vhod = QLabel(user['name'] + " " + user['patronymic'])
+
+        self.menu_h_layout.addItem(spacerItem1)
+        self.menu_h_layout.addWidget(self.label_vhod)
+        self.menu_v_layout.addLayout(self.menu_h_layout)
+
+        self.setLayout(self.menu_v_layout)
 
 
 class CadTeachPayCarPage(QWidget):
@@ -235,7 +276,37 @@ class CadTeachPayCarPage(QWidget):
         self.create_page()
 
     def create_page(self):
-        pass
+
+        self.menu_v_layout = QVBoxLayout()
+        self.menu_h_layout = QHBoxLayout()
+
+        spacerItem = QSpacerItem(
+            40, 20, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding)
+        spacerItem1 = QSpacerItem(
+            40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+
+        spacerItem2 = QSpacerItem(
+            20, 40, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
+
+        self.button_add = QPushButton("Добавить")
+        self.button_add.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.button_add.clicked.connect(self.add_object)
+
+        self.list_widget = QListWidget()
+
+        self.menu_v_layout.addWidget(self.button_add)
+        self.menu_v_layout.addItem(spacerItem)
+
+        self.menu_h_layout.addLayout(self.menu_v_layout)
+
+        self.menu_h_layout.addWidget(self.list_widget)
+
+        self.setLayout(self.menu_h_layout)
+
+    def add_object(self):
+        main_widget = ChangePage(self.stack, 2, self.buttons)
+        self.stack.addWidget(main_widget)
+        self.stack.setCurrentWidget(main_widget)
 
 
 class LessonsPage(QWidget):
@@ -259,15 +330,62 @@ class ReportsPage(QWidget):
     def create_page(self):
         pass
 
-class ChangePage(QWidget): 
-    def __init__(self, stack, buttons):
+
+class ChangePage(QWidget):
+    def __init__(self, stack, type_change, buttons):
         super().__init__()
         self.stack = stack
+        self.type_change = type_change
         self.buttons = buttons
         self.create_page()
 
     def create_page(self):
-        pass
+
+        self.menu_h_layout = QHBoxLayout()
+        self.menu_v_layout = QVBoxLayout()
+
+        self.menu_h_layout2 = QHBoxLayout()
+
+        spacerItem = QSpacerItem(
+            40, 20, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding)
+        spacerItem1 = QSpacerItem(
+            40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+
+        spacerItem2 = QSpacerItem(
+            20, 40, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
+
+        self.save_button = QPushButton("Сохранить")
+        self.save_button.setCursor(Qt.CursorShape.PointingHandCursor)
+
+        self.back_button = QPushButton("Отменить")
+        self.back_button.setCursor(Qt.CursorShape.PointingHandCursor)
+
+        arr_fields = ["Название объекта", "Возраст", "Адрес"]
+
+        for elem in arr_fields:
+            self.name_input_label = QLabel(elem)
+            self.name_input = QLineEdit(f"manager__000000001")  # Заглушка
+            self.name_input.setPlaceholderText(elem)
+
+            self.menu_v_layout.addWidget(self.name_input_label)
+            self.menu_v_layout.addWidget(self.name_input)
+
+        self.menu_v_layout.addItem(spacerItem2)
+        self.menu_h_layout2.addWidget(self.save_button)
+        self.menu_h_layout2.addWidget(self.back_button)
+        self.menu_v_layout.addLayout(self.menu_h_layout2)
+        self.menu_h_layout.addItem(spacerItem1)
+        self.menu_h_layout.addLayout(self.menu_v_layout)
+        self.menu_h_layout.addItem(spacerItem1)
+
+        self.setLayout(self.menu_h_layout)
+
+        self.back_button.clicked.connect(self.back_to_manager_page)
+
+    def back_to_manager_page(self):
+        main_widget = MainPage(self.stack, self.buttons)
+        self.stack.addWidget(main_widget)
+        self.stack.setCurrentWidget(main_widget)
 
 
 if __name__ == '__main__':
