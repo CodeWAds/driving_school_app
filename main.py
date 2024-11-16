@@ -1,6 +1,6 @@
-from PyQt6.QtWidgets import QApplication, QLabel, QListWidget, QListWidgetItem, QLineEdit, QMessageBox, QMainWindow, QStackedWidget, QVBoxLayout, QWidget, QPushButton, QHBoxLayout, QSpacerItem, QSizePolicy
+from PyQt6.QtWidgets import QApplication, QLabel, QListWidget, QGridLayout, QListWidgetItem, QLineEdit, QMessageBox, QMainWindow, QStackedWidget, QVBoxLayout, QWidget, QPushButton, QHBoxLayout, QSpacerItem, QSizePolicy
 from PyQt6.QtGui import QIcon
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QDate, QLocale
 
 from settings import ResizableWidget, Settings
 import sys
@@ -70,7 +70,7 @@ class MainWindow(QMainWindow, ResizableWidget):
             "Курсанты": CadTeachPayCarPage,
             "Инструкторы": CadTeachPayCarPage,
             "Автомобили": CadTeachPayCarPage,
-            "Занятия": CadTeachPayCarPage,
+            "Занятия": LessonsPage,
             "Платежи": CadTeachPayCarPage,
             "Отчет": CadTeachPayCarPage
         }
@@ -312,12 +312,117 @@ class CadTeachPayCarPage(QWidget):
 class LessonsPage(QWidget):
     def __init__(self, stack, buttons):
         super().__init__()
+        self.current_date = QDate.currentDate()
+        self.year = self.current_date.year()
+        self.month = self.current_date.month()
+        self.start_date = self.current_date.addDays(-self.current_date.dayOfWeek() + 1)
+
+        QLocale.setDefault(QLocale(QLocale.Language.Russian, QLocale.Country.Russia))
+        self.locale = QLocale()
+
         self.stack = stack
         self.buttons = buttons
         self.create_page()
 
     def create_page(self):
-        pass
+        spacerItem = QSpacerItem(
+            40, 20, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding)
+        spacerItem1 = QSpacerItem(
+            40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+
+        spacerItem2 = QSpacerItem(
+            20, 40, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
+
+        self.main_h_layout = QHBoxLayout()
+
+        self.main_layout = QVBoxLayout()
+
+        self.teach_list = QListWidget()
+
+        self.navigation_layout = QHBoxLayout()
+        self.prev_button = QPushButton("Предыдущая неделя")
+        self.prev_button.clicked.connect(self.show_previous_week)
+        self.next_button = QPushButton("Следующая неделя")
+        self.next_button.clicked.connect(self.show_next_week)
+
+        self.week_label = QLabel()
+        self.update_week_label()
+
+        self.navigation_layout.addWidget(self.prev_button)
+        self.navigation_layout.addWidget(
+            self.week_label, alignment=Qt.AlignmentFlag.AlignCenter)
+        self.navigation_layout.addWidget(self.next_button)
+
+        self.week_layout = QVBoxLayout()
+        self.week_layout.setSpacing(10)
+
+        self.main_layout.addLayout(self.navigation_layout)
+        self.main_layout.addLayout(self.week_layout)
+
+        self.main_h_layout.addWidget(self.teach_list)
+        self.main_h_layout.addItem(spacerItem2)
+        self.main_h_layout.addLayout(self.main_layout)
+
+        self.display_week()
+        self.setLayout(self.main_h_layout)
+
+    def display_week(self):
+        # Очистка предыдущего содержимого
+        for i in reversed(range(self.week_layout.count())):
+            widget = self.week_layout.itemAt(i).widget()
+            if widget:
+                widget.setParent(None)
+
+        # Генерация дней недели строками
+        date = self.start_date
+        cell_style = "QWidget { border: 1px solid gray; }"
+
+        for i in range(7):  # 7 дней в неделе
+            day_widget = QWidget()
+            day_layout = QHBoxLayout(day_widget)
+            # day_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            day_layout.setContentsMargins(2, 2, 2, 2)
+                
+            # День недели и дата
+            short_day_name = self.locale.dayName(date.dayOfWeek(), QLocale.FormatType.ShortFormat)
+            day_label = QLabel(f"{short_day_name}, {date.day()}")
+            day_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            day_label.setStyleSheet("border: none;")
+            day_layout.addWidget(day_label)
+
+            # Кнопки для временных интервалов
+            for hour in range(6, 22, 3):
+                time_button = QPushButton(f"{hour}:00")
+                time_button.setObjectName("time_button")
+                day_layout.addWidget(time_button)
+                time_button.clicked.connect(self.on_time_button_clicked)
+
+            day_widget.setStyleSheet(cell_style)
+            self.week_layout.addWidget(day_widget)
+            date = date.addDays(1)
+
+    def update_week_label(self):
+        end_date = self.start_date.addDays(6)
+        start_text = self.locale.toString(self.start_date, "d MMMM yyyy") 
+        end_text = self.locale.toString(end_date, "d MMMM yyyy") 
+        self.week_label.setText(f"{start_text} - {end_text}")
+
+    def show_previous_week(self):
+        self.start_date = self.start_date.addDays(-7)
+        self.update_calendar()
+
+    def show_next_week(self):
+        self.start_date = self.start_date.addDays(7)
+        self.update_calendar()
+
+    def update_calendar(self):
+        self.update_week_label()
+        self.display_week()
+
+    def on_time_button_clicked(self):
+        main_widget = ChangePage(self.stack, 1, self.buttons)
+        self.stack.addWidget(main_widget)
+        self.stack.setCurrentWidget(main_widget)
 
 
 class ReportsPage(QWidget):

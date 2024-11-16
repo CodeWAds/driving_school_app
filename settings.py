@@ -15,6 +15,7 @@ class ResizableWidget(QWidget):
     def updateStyles(self):
         width = self.width()
         font_size = max(10, min(width // 50, 20))
+        font_size2 = max(7, min(width // 100, 20))
 
         self.setStyleSheet(f"""
             QMainWindow {{background-color: #F0F4F8;}}               
@@ -64,6 +65,9 @@ class ResizableWidget(QWidget):
             QListWidget {{
                 background-color: #81b7f7;
             }}
+            QPushButton#time_button {{
+                font-size: {font_size}px;
+            }}
         """)
 
         for button in self.buttons:
@@ -103,7 +107,6 @@ class Settings():
     def __init__(self):
         pass
 
-
     async def connect_to_db(self):
         try:
             connection = await aiomysql.connect(
@@ -116,7 +119,6 @@ class Settings():
             return connection
         except Exception as ex:
             print(ex)
-
 
     async def find_user_by_login(self, login):
         connection = await self.connect_to_db()
@@ -134,11 +136,10 @@ class Settings():
         finally:
             connection.close()
 
-
     async def check_passwd(self):
 
         user = await self.find_user_by_login(self.login)
-        
+
         if user:
             stored_password = user['password']
             if bcrypt.checkpw(self.passwd.encode('utf-8'), stored_password.encode('utf-8')):
@@ -147,4 +148,3 @@ class Settings():
                 return False
         else:
             return False
-
