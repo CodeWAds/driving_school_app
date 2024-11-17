@@ -72,7 +72,7 @@ class MainWindow(QMainWindow, ResizableWidget):
             "Автомобили": CadTeachPayCarPage,
             "Занятия": LessonsPage,
             "Платежи": CadTeachPayCarPage,
-            "Отчет": CadTeachPayCarPage
+            "Отчет": ReportsPage
         }
 
         page_class = page_mapping.get(sender.text())
@@ -251,8 +251,10 @@ class MainPage(QWidget):
         self.menu_v_layout = QVBoxLayout()
         self.menu_h_layout = QHBoxLayout()
 
+        self.menu_h_layout2 = QHBoxLayout()
+
         spacerItem = QSpacerItem(
-            40, 20, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding)
+            20, 20, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding)
         spacerItem1 = QSpacerItem(
             40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
 
@@ -264,6 +266,20 @@ class MainPage(QWidget):
         self.menu_h_layout.addItem(spacerItem1)
         self.menu_h_layout.addWidget(self.label_vhod)
         self.menu_v_layout.addLayout(self.menu_h_layout)
+
+        self.label_information1 = QLabel("Информация1")
+        self.label_information1.setObjectName("label_info1")
+        self.label_information2 = QLabel("Информация2")
+        self.label_information2.setObjectName("label_info2")
+
+        self.menu_h_layout2.addItem(spacerItem)
+        self.menu_h_layout2.addWidget(self.label_information1)
+        self.menu_h_layout2.addItem(spacerItem2)
+        self.menu_h_layout2.addWidget(self.label_information2)
+        self.menu_h_layout2.addItem(spacerItem)
+
+        self.menu_v_layout.addLayout(self.menu_h_layout2)
+        self.menu_v_layout.addItem(spacerItem)
 
         self.setLayout(self.menu_v_layout)
 
@@ -433,7 +449,29 @@ class ReportsPage(QWidget):
         self.create_page()
 
     def create_page(self):
-        pass
+        
+        self.menu_h_layout = QHBoxLayout()
+        self.menu_v_layout = QVBoxLayout()
+
+        self.report = QListWidget()
+
+        self.hour_st_label = QLabel("Часовая ставка")
+        self.hour_st = QLineEdit()
+        self.coefficient_label = QLabel("Коэффициент за дополнительные занятия")
+        self.coefficient = QLineEdit()
+
+        self.get_report_button = QPushButton("Рассчитать")
+
+        self.menu_v_layout.addWidget(self.hour_st_label)
+        self.menu_v_layout.addWidget(self.hour_st)
+        self.menu_v_layout.addWidget(self.coefficient_label)    
+        self.menu_v_layout.addWidget(self.coefficient)
+        self.menu_v_layout.addWidget(self.get_report_button)   
+
+        self.menu_h_layout.addLayout(self.menu_v_layout)
+        self.menu_h_layout.addWidget(self.report)
+
+        self.setLayout(self.menu_h_layout)
 
 
 class ChangePage(QWidget):

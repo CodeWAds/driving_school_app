@@ -55,16 +55,17 @@ class ResizableWidget(QWidget):
             }}        
 
             QLabel#label_info1 {{
-                padding: 2px;
                 background-color: #81b7f7;
             }}  
+
             QLabel#label_info2 {{
-                padding: 20px;
                 background-color: #81b7f7;
             }}
+
             QListWidget {{
                 background-color: #81b7f7;
             }}
+            
             QPushButton#time_button {{
                 font-size: {font_size}px;
             }}
@@ -105,7 +106,64 @@ class ResizableWidget(QWidget):
 
 class Settings():
     def __init__(self):
-        pass
+        self.user_data = {
+            'id_user': None,
+            'surname': None,
+            'name': None,
+            'patronymic': None,
+            'login': None,
+            'password': None,
+            'role': None
+        }
+
+        self.student_data = {
+            'id_user': None,
+            'number_phone': None,
+            'trainer_id': None,
+            'status_student': None,
+            'desc_object': None
+        }
+
+        self.trainer_data = {
+            'id_user': None,
+            'car_id': None,
+            'desc_object': None
+        }
+
+        self.payment_data = {
+            'id_payment': None,
+            'student_id': None,
+            'amount': None,
+            'date_payment': None,
+            'status_payment': None,
+            'desc_object': None
+        }
+
+        self.manager_data = {
+            'id_user': None,
+            'desc_object': None
+        }
+
+        self.lesson_data = {
+            'id_lesson': None,
+            'student_id': None,
+            'trainer_id': None,
+            'date_lesson': None,
+            'status_lesson': None,
+            'desc_object': None
+        }
+
+        self.car_data = {
+            'id_car': None,
+            'brand': None,
+            'number': None,
+            'desc_object': None
+        }
+
+        self.admin_data = {
+            'id_user': None,
+            'desc_object': None
+        }
 
     async def connect_to_db(self):
         try:
