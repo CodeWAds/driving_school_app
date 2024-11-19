@@ -206,3 +206,17 @@ class Settings():
                 return False
         else:
             return False
+
+    async def get_managers(self):
+        connection = await self.connect_to_db()
+        if not connection:
+            return None
+
+        try:
+            async with connection.cursor() as cursor:
+                sql = "SELECT * FROM user where role = 3"
+                await cursor.execute(sql)
+                manager = await cursor.fetchall()
+            return manager
+        except Exception as ex:
+            return None

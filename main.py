@@ -1,6 +1,6 @@
 from PyQt6.QtWidgets import QApplication, QLabel, QListWidget, QGridLayout, QListWidgetItem, QLineEdit, QMessageBox, QMainWindow, QStackedWidget, QVBoxLayout, QWidget, QPushButton, QHBoxLayout, QSpacerItem, QSizePolicy
 from PyQt6.QtGui import QIcon
-from PyQt6.QtCore import Qt, QDate, QLocale
+from PyQt6.QtCore import Qt, QSize, QDate, QLocale, QTimer
 
 from settings import ResizableWidget, Settings
 import sys
@@ -173,7 +173,7 @@ class LoginPage(ResizableWidget, Settings):
         error_dialog.exec()
 
 
-class MainPage(QWidget):
+class MainPage(QWidget, Settings):
     def __init__(self, stack, buttons):
         super().__init__()
         self.stack = stack
@@ -186,6 +186,10 @@ class MainPage(QWidget):
             self.create_page_manager()
 
     def create_page_admin(self):
+
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.update_info)
+        self.timer.start(5000)
 
         self.menu_v_layout = QVBoxLayout()
         self.menu_h_layout = QHBoxLayout()
@@ -218,9 +222,15 @@ class MainPage(QWidget):
 
         self.label_list = QLabel("Менеджеры")
 
-        self.label_information1 = QLabel("Информация1")
+        self.label_information1 = QLabel(f"""Количество 
+инструкторов: 
+1""")
+        self.label_information1.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.label_information1.setObjectName("label_info1")
-        self.label_information2 = QLabel("Информация2")
+        self.label_information2 = QLabel(f"""Количество
+курсантов:
+1""")
+        self.label_information2.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.label_information2.setObjectName("label_info2")
         self.menu_v_layout3.addItem(spacerItem2)
         self.menu_v_layout3.addWidget(self.button_add)
@@ -238,6 +248,8 @@ class MainPage(QWidget):
         self.menu_v_layout.addLayout(self.menu_h_layout2)
 
         self.setLayout(self.menu_v_layout)
+
+        self.update_info()
 
         self.button_add.clicked.connect(self.add_manager)
 
@@ -267,7 +279,9 @@ class MainPage(QWidget):
         self.menu_h_layout.addWidget(self.label_vhod)
         self.menu_v_layout.addLayout(self.menu_h_layout)
 
-        self.label_information1 = QLabel("Информация1")
+        self.label_information1 = QLabel(f""""
+                                         Количество инструкторов: 
+                                         {len(self.managers)}""")
         self.label_information1.setObjectName("label_info1")
         self.label_information2 = QLabel("Информация2")
         self.label_information2.setObjectName("label_info2")
@@ -282,6 +296,83 @@ class MainPage(QWidget):
         self.menu_v_layout.addItem(spacerItem)
 
         self.setLayout(self.menu_v_layout)
+
+    @asyncSlot()
+    async def update_info(self):
+        current_items = []
+        for i in range(self.list_widget.count()):
+            item = self.list_widget.item(i)
+            widget = self.list_widget.itemWidget(
+                item).layout().itemAt(0).widget().text()
+            current_items.append(widget)
+
+        self.managers = await self.get_managers()
+
+        manager_names = [item["name"] for item in self.managers]
+        items_to_add = [
+            name for name in manager_names if name not in current_items]
+        items_to_remove = [
+            name for name in current_items if name not in manager_names]
+
+        for item in items_to_add:
+            item_widget = QWidget()
+            layout = QHBoxLayout()
+
+            spacer = QSpacerItem(
+                40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+
+            # Добавляем текст
+            name_label = QLabel(f"{item}")
+            layout.addWidget(name_label)
+
+            # Создаем кнопку редактирования
+            edit_button = QPushButton()
+            edit_button.setIcon(QIcon("./src/img/pencil.svg"))
+            edit_button.setIconSize(QSize(24, 24))
+            edit_button.setCursor(Qt.CursorShape.PointingHandCursor)
+            edit_button.clicked.connect(lambda _, m=item: self.edit_manager(m))
+
+            # Создаем кнопку удаления
+            delete_button = QPushButton()
+            delete_button.setIcon(QIcon("./src/img/trash.svg"))
+            delete_button.setIconSize(QSize(24, 24))
+            delete_button.setCursor(Qt.CursorShape.PointingHandCursor)
+            delete_button.clicked.connect(
+                lambda _, m=item: self.delete_manager(m))
+
+            layout.addWidget(name_label)
+            layout.addItem(spacer)
+            layout.addWidget(edit_button)
+            layout.addWidget(delete_button)
+
+            # Устанавливаем макет на виджет
+            item_widget.setLayout(layout)
+
+            # Добавляем виджет в QListWidget
+            item = QListWidgetItem()
+            item.setSizeHint(item_widget.sizeHint())
+            self.list_widget.addItem(item)
+            self.list_widget.setItemWidget(item, item_widget)
+
+        # Проходим с конца, чтобы индексы не смещались
+        for i in range(self.list_widget.count() - 1, -1, -1):
+            item = self.list_widget.item(i)  # Получаем QListWidgetItem
+            widget = self.list_widget.itemWidget(
+                item)  # Виджет, связанный с элементом
+            layout = widget.layout()  # Получаем лейаут виджета
+            # Предполагаем, что QLabel
+            item_text = layout.itemAt(0).widget().text()
+
+            if item_text in items_to_remove:
+                self.list_widget.takeItem(i)
+
+    def edit_manager(self, manager):
+        print(
+            f"Edit manager: {manager['surname']} {manager['name']} {manager['patronymic']}")
+
+    def delete_manager(self, manager):
+        print(
+            f"Delete manager: {manager['surname']} {manager['name']} {manager['patronymic']}")
 
 
 class CadTeachPayCarPage(QWidget):
@@ -331,9 +422,11 @@ class LessonsPage(QWidget):
         self.current_date = QDate.currentDate()
         self.year = self.current_date.year()
         self.month = self.current_date.month()
-        self.start_date = self.current_date.addDays(-self.current_date.dayOfWeek() + 1)
+        self.start_date = self.current_date.addDays(
+            -self.current_date.dayOfWeek() + 1)
 
-        QLocale.setDefault(QLocale(QLocale.Language.Russian, QLocale.Country.Russia))
+        QLocale.setDefault(
+            QLocale(QLocale.Language.Russian, QLocale.Country.Russia))
         self.locale = QLocale()
 
         self.stack = stack
@@ -398,9 +491,10 @@ class LessonsPage(QWidget):
             day_layout = QHBoxLayout(day_widget)
             # day_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
             day_layout.setContentsMargins(2, 2, 2, 2)
-                
+
             # День недели и дата
-            short_day_name = self.locale.dayName(date.dayOfWeek(), QLocale.FormatType.ShortFormat)
+            short_day_name = self.locale.dayName(
+                date.dayOfWeek(), QLocale.FormatType.ShortFormat)
             day_label = QLabel(f"{short_day_name}, {date.day()}")
             day_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             day_label.setStyleSheet("border: none;")
@@ -419,8 +513,8 @@ class LessonsPage(QWidget):
 
     def update_week_label(self):
         end_date = self.start_date.addDays(6)
-        start_text = self.locale.toString(self.start_date, "d MMMM yyyy") 
-        end_text = self.locale.toString(end_date, "d MMMM yyyy") 
+        start_text = self.locale.toString(self.start_date, "d MMMM yyyy")
+        end_text = self.locale.toString(end_date, "d MMMM yyyy")
         self.week_label.setText(f"{start_text} - {end_text}")
 
     def show_previous_week(self):
@@ -449,7 +543,7 @@ class ReportsPage(QWidget):
         self.create_page()
 
     def create_page(self):
-        
+
         self.menu_h_layout = QHBoxLayout()
         self.menu_v_layout = QVBoxLayout()
 
@@ -457,16 +551,17 @@ class ReportsPage(QWidget):
 
         self.hour_st_label = QLabel("Часовая ставка")
         self.hour_st = QLineEdit()
-        self.coefficient_label = QLabel("Коэффициент за дополнительные занятия")
+        self.coefficient_label = QLabel(
+            "Коэффициент за дополнительные занятия")
         self.coefficient = QLineEdit()
 
         self.get_report_button = QPushButton("Рассчитать")
 
         self.menu_v_layout.addWidget(self.hour_st_label)
         self.menu_v_layout.addWidget(self.hour_st)
-        self.menu_v_layout.addWidget(self.coefficient_label)    
+        self.menu_v_layout.addWidget(self.coefficient_label)
         self.menu_v_layout.addWidget(self.coefficient)
-        self.menu_v_layout.addWidget(self.get_report_button)   
+        self.menu_v_layout.addWidget(self.get_report_button)
 
         self.menu_h_layout.addLayout(self.menu_v_layout)
         self.menu_h_layout.addWidget(self.report)
