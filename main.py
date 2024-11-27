@@ -1,4 +1,4 @@
-from PyQt6.QtWidgets import QApplication, QLabel, QListWidget, QGridLayout, QListWidgetItem, QLineEdit, QMessageBox, QMainWindow, QStackedWidget, QVBoxLayout, QWidget, QPushButton, QHBoxLayout, QSpacerItem, QSizePolicy
+from PyQt6.QtWidgets import QApplication, QLabel, QListWidget,QScrollArea, QGridLayout, QListWidgetItem, QLineEdit, QMessageBox, QMainWindow, QStackedWidget, QVBoxLayout, QWidget, QPushButton, QHBoxLayout, QSpacerItem, QSizePolicy
 from PyQt6.QtGui import QIcon
 from PyQt6.QtCore import Qt, QSize, QDate, QLocale, QTimer
 
@@ -178,9 +178,11 @@ class MainPage(QWidget, Settings):
         super().__init__()
         self.stack = stack
         self.buttons = buttons
+        self.count_instructors = 0
+        self.count_students = 0
         for button in self.buttons[1:]:
             button.setEnabled(True)
-        if user['role'] == 4:
+        if user['role'] == "Admin":
             self.create_page_admin()
         else:
             self.create_page_manager()
@@ -224,7 +226,7 @@ class MainPage(QWidget, Settings):
 
         self.label_information1 = QLabel(f"""Количество 
 инструкторов: 
-1""")
+{self.count_instructors}""")
         self.label_information1.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.label_information1.setObjectName("label_info1")
         self.label_information2 = QLabel(f"""Количество
@@ -279,9 +281,9 @@ class MainPage(QWidget, Settings):
         self.menu_h_layout.addWidget(self.label_vhod)
         self.menu_v_layout.addLayout(self.menu_h_layout)
 
-        self.label_information1 = QLabel(f""""
+        self.label_information1 = QLabel(f"""
                                          Количество инструкторов: 
-                                         {len(self.managers)}""")
+                                         {self.count_instructors}""")
         self.label_information1.setObjectName("label_info1")
         self.label_information2 = QLabel("Информация2")
         self.label_information2.setObjectName("label_info2")
@@ -307,6 +309,128 @@ class MainPage(QWidget, Settings):
             current_items.append(widget)
 
         self.managers = await self.get_managers()
+
+        self.count_instructors = len(self.managers)
+        self.label_information1.setText(f"""Количество 
+инструкторов: 
+{self.count_instructors}"""
+        )
+        self.label_information1.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        manager_names = [item["name"] for item in self.managers]
+        items_to_add = [
+            name for name in manager_names if name not in current_items]
+        items_to_remove = [
+            name for name in current_items if name not in manager_names]
+
+        for item in items_to_add:
+            item_widget = QWidget()
+            layout = QHBoxLayout()
+
+            spacer = QSpacerItem(
+                40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+
+            # Добавляем текст
+            name_label = QLabel(f"{item}")
+            layout.addWidget(name_label)
+
+            # Создаем кнопку редактирования
+            edit_button = QPushButton()
+            edit_button.setIcon(QIcon("./src/img/pencil.svg"))
+            edit_button.setIconSize(QSize(24, 24))
+            edit_button.setCursor(Qt.CursorShape.PointingHandCursor)
+            edit_button.clicked.connect(lambda _, m=item: self.edit_manager(m))
+
+            # Создаем кнопку удаления
+            delete_button = QPushButton()
+            delete_button.setIcon(QIcon("./src/img/trash.svg"))
+            delete_button.setIconSize(QSize(24, 24))
+            delete_button.setCursor(Qt.CursorShape.PointingHandCursor)
+            delete_button.clicked.connect(
+                lambda _, m=item: self.delete_manager(m))
+
+            layout.addWidget(name_label)
+            layout.addItem(spacer)
+            layout.addWidget(edit_button)
+            layout.addWidget(delete_button)
+
+            item_widget.setLayout(layout)
+
+            # Добавляем виджет в QListWidget
+            item = QListWidgetItem()
+            item.setSizeHint(item_widget.sizeHint())
+            self.list_widget.addItem(item)
+            self.list_widget.setItemWidget(item, item_widget)
+
+        # Проходим с конца, чтобы индексы не смещались
+        for i in range(self.list_widget.count() - 1, -1, -1):
+            item = self.list_widget.item(i)  # Получаем QListWidgetItem
+            widget = self.list_widget.itemWidget(
+                item).layout().itemAt(0).widget().text()
+
+            if widget in items_to_remove:
+                self.list_widget.takeItem(i)
+
+    def edit_manager(self, manager):
+        print(
+            f"Edit manager: {manager}")
+
+    @asyncSlot()
+    async def delete_manager(self, manager):
+        await self.drop_manager(manager)
+        print(f"Удалён {manager}")
+
+
+class CadTeachPayCarPage(QWidget):
+    def __init__(self, stack, buttons):
+        super().__init__()
+        self.stack = stack
+        self.buttons = buttons
+        self.create_page()
+
+    def create_page(self):
+
+        self.menu_v_layout = QVBoxLayout()
+        self.menu_h_layout = QHBoxLayout()
+
+        spacerItem = QSpacerItem(
+            40, 20, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding)
+        spacerItem1 = QSpacerItem(
+            40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+
+        spacerItem2 = QSpacerItem(
+            20, 40, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
+
+        self.button_add = QPushButton("Добавить")
+        self.button_add.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.button_add.clicked.connect(self.add_object)
+
+        self.list_widget = QListWidget()
+
+        self.menu_v_layout.addWidget(self.button_add)
+        self.menu_v_layout.addItem(spacerItem)
+
+        self.menu_h_layout.addLayout(self.menu_v_layout)
+
+        self.menu_h_layout.addWidget(self.list_widget)
+
+        self.setLayout(self.menu_h_layout)
+
+        self.update_info()
+
+    def add_object(self):
+        main_widget = ChangePage(self.stack, 2, self.buttons)
+        self.stack.addWidget(main_widget)
+        self.stack.setCurrentWidget(main_widget)
+
+    @asyncSlot()
+    async def update_info(self):
+        current_items = []
+        for i in range(self.list_widget.count()):
+            item = self.list_widget.item(i)
+            widget = self.list_widget.itemWidget(
+                item).layout().itemAt(0).widget().text()
+            current_items.append(widget)
 
         manager_names = [item["name"] for item in self.managers]
         items_to_add = [
@@ -358,62 +482,18 @@ class MainPage(QWidget, Settings):
         for i in range(self.list_widget.count() - 1, -1, -1):
             item = self.list_widget.item(i)  # Получаем QListWidgetItem
             widget = self.list_widget.itemWidget(
-                item)  # Виджет, связанный с элементом
-            layout = widget.layout()  # Получаем лейаут виджета
-            # Предполагаем, что QLabel
-            item_text = layout.itemAt(0).widget().text()
+                item).layout().itemAt(0).widget().text()
 
-            if item_text in items_to_remove:
+            if widget in items_to_remove:
                 self.list_widget.takeItem(i)
 
     def edit_manager(self, manager):
         print(
-            f"Edit manager: {manager['surname']} {manager['name']} {manager['patronymic']}")
+            f"Edit manager: {manager}")
 
-    def delete_manager(self, manager):
-        print(
-            f"Delete manager: {manager['surname']} {manager['name']} {manager['patronymic']}")
-
-
-class CadTeachPayCarPage(QWidget):
-    def __init__(self, stack, buttons):
-        super().__init__()
-        self.stack = stack
-        self.buttons = buttons
-        self.create_page()
-
-    def create_page(self):
-
-        self.menu_v_layout = QVBoxLayout()
-        self.menu_h_layout = QHBoxLayout()
-
-        spacerItem = QSpacerItem(
-            40, 20, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding)
-        spacerItem1 = QSpacerItem(
-            40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
-
-        spacerItem2 = QSpacerItem(
-            20, 40, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
-
-        self.button_add = QPushButton("Добавить")
-        self.button_add.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.button_add.clicked.connect(self.add_object)
-
-        self.list_widget = QListWidget()
-
-        self.menu_v_layout.addWidget(self.button_add)
-        self.menu_v_layout.addItem(spacerItem)
-
-        self.menu_h_layout.addLayout(self.menu_v_layout)
-
-        self.menu_h_layout.addWidget(self.list_widget)
-
-        self.setLayout(self.menu_h_layout)
-
-    def add_object(self):
-        main_widget = ChangePage(self.stack, 2, self.buttons)
-        self.stack.addWidget(main_widget)
-        self.stack.setCurrentWidget(main_widget)
+    @asyncSlot()
+    async def delete_manager(self, manager):
+        self
 
 
 class LessonsPage(QWidget):
@@ -569,7 +649,7 @@ class ReportsPage(QWidget):
         self.setLayout(self.menu_h_layout)
 
 
-class ChangePage(QWidget):
+class ChangePage(QWidget, Settings):
     def __init__(self, stack, type_change, buttons):
         super().__init__()
         self.stack = stack
@@ -598,15 +678,31 @@ class ChangePage(QWidget):
         self.back_button = QPushButton("Отменить")
         self.back_button.setCursor(Qt.CursorShape.PointingHandCursor)
 
-        arr_fields = ["Название объекта", "Возраст", "Адрес"]
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setObjectName("scroll_area")
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_content = QWidget()
+        self.scroll_layout = QVBoxLayout(self.scroll_content)
 
-        for elem in arr_fields:
+        self.label_name_object = QLabel("Название объекта")
+        self.label_name_object_input = QLineEdit()
+        self.label_name_object_input.setPlaceholderText("Название объекта")
+        self.menu_v_layout.addWidget(self.label_name_object)
+        self.menu_v_layout.addWidget(self.label_name_object_input)
+
+        for elem in self.user_data:
             self.name_input_label = QLabel(elem)
-            self.name_input = QLineEdit(f"manager__000000001")  # Заглушка
+            self.name_input = QLineEdit()
             self.name_input.setPlaceholderText(elem)
 
-            self.menu_v_layout.addWidget(self.name_input_label)
-            self.menu_v_layout.addWidget(self.name_input)
+            self.scroll_layout.addWidget(self.name_input_label)
+            self.scroll_layout.addWidget(self.name_input)
+            self.name_input.setStyleSheet("background-color: #81b7f7")
+        
+        self.scroll_content.setLayout(self.scroll_layout)
+        self.scroll_content.setStyleSheet("background-color: #F0F4F8;")
+        self.scroll_area.setWidget(self.scroll_content)        
+        self.menu_v_layout.addWidget(self.scroll_area)
 
         self.menu_v_layout.addItem(spacerItem2)
         self.menu_h_layout2.addWidget(self.save_button)
@@ -620,11 +716,27 @@ class ChangePage(QWidget):
 
         self.back_button.clicked.connect(self.back_to_manager_page)
 
+        self.save_button.clicked.connect(self.save_changes)
+
     def back_to_manager_page(self):
         main_widget = MainPage(self.stack, self.buttons)
         self.stack.addWidget(main_widget)
         self.stack.setCurrentWidget(main_widget)
 
+    @asyncSlot()
+    async def save_changes(self):
+        arr_fields = []
+        for child in self.scroll_content.children():
+            if isinstance(child, QLineEdit):
+                arr_fields.append(child.text())
+        
+        
+        await self.create_manager(*arr_fields)
+        # self.update_user_data()
+        main_widget = MainPage(self.stack, self.buttons)
+        self.stack.addWidget(main_widget)
+        self.stack.setCurrentWidget(main_widget)
+        print("Норм")
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
