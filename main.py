@@ -1,4 +1,4 @@
-from PyQt6.QtWidgets import QApplication, QLabel, QListWidget,QScrollArea, QGridLayout, QListWidgetItem, QLineEdit, QMessageBox, QMainWindow, QStackedWidget, QVBoxLayout, QWidget, QPushButton, QHBoxLayout, QSpacerItem, QSizePolicy
+from PyQt6.QtWidgets import QApplication, QLabel, QListWidget, QComboBox, QScrollArea, QGridLayout, QListWidgetItem, QLineEdit, QMessageBox, QMainWindow, QStackedWidget, QVBoxLayout, QWidget, QPushButton, QHBoxLayout, QSpacerItem, QSizePolicy
 from PyQt6.QtGui import QIcon
 from PyQt6.QtCore import Qt, QSize, QDate, QLocale, QTimer
 
@@ -164,14 +164,6 @@ class LoginPage(ResizableWidget, Settings):
             self.login_input.returnPressed.connect(self.vhod)
             self.passwd_input.returnPressed.connect(self.vhod)
 
-    def show_error_message(self, title, message):
-        error_dialog = QMessageBox()
-        error_dialog.setIcon(QMessageBox.Icon.Critical)
-        error_dialog.setWindowTitle(title)
-        error_dialog.setText(message)
-        error_dialog.setStandardButtons(QMessageBox.StandardButton.Ok)
-        error_dialog.exec()
-
 
 class MainPage(QWidget, Settings):
     def __init__(self, stack, buttons):
@@ -256,7 +248,7 @@ class MainPage(QWidget, Settings):
         self.button_add.clicked.connect(self.add_manager)
 
     def add_manager(self):
-        main_widget = ChangePage(self.stack, 1, self.buttons)
+        main_widget = ChangePage(self.stack, 'Менеджеры', self.buttons)
         self.stack.addWidget(main_widget)
         self.stack.setCurrentWidget(main_widget)
 
@@ -314,7 +306,7 @@ class MainPage(QWidget, Settings):
         self.label_information1.setText(f"""Количество 
 инструкторов: 
 {self.count_instructors}"""
-        )
+                                        )
         self.label_information1.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         manager_names = [item["name"] for item in self.managers]
@@ -419,7 +411,10 @@ class CadTeachPayCarPage(QWidget):
         self.update_info()
 
     def add_object(self):
-        main_widget = ChangePage(self.stack, 2, self.buttons)
+        for button in self.buttons:
+            if button.isChecked():
+                self.type_object = button.text()
+        main_widget = ChangePage(self.stack, self.type_object, self.buttons)
         self.stack.addWidget(main_widget)
         self.stack.setCurrentWidget(main_widget)
 
@@ -493,7 +488,7 @@ class CadTeachPayCarPage(QWidget):
 
     @asyncSlot()
     async def delete_manager(self, manager):
-        self
+        pass
 
 
 class LessonsPage(QWidget):
@@ -610,7 +605,7 @@ class LessonsPage(QWidget):
         self.display_week()
 
     def on_time_button_clicked(self):
-        main_widget = ChangePage(self.stack, 1, self.buttons)
+        main_widget = ChangePage(self.stack, "", self.buttons)
         self.stack.addWidget(main_widget)
         self.stack.setCurrentWidget(main_widget)
 
@@ -657,7 +652,8 @@ class ChangePage(QWidget, Settings):
         self.buttons = buttons
         self.create_page()
 
-    def create_page(self):
+    @asyncSlot()
+    async def create_page(self):
 
         self.menu_h_layout = QHBoxLayout()
         self.menu_v_layout = QVBoxLayout()
@@ -690,18 +686,39 @@ class ChangePage(QWidget, Settings):
         self.menu_v_layout.addWidget(self.label_name_object)
         self.menu_v_layout.addWidget(self.label_name_object_input)
 
-        for elem in self.user_data:
+        for elem in self.types_change[self.type_change]:
             self.name_input_label = QLabel(elem)
-            self.name_input = QLineEdit()
-            self.name_input.setPlaceholderText(elem)
+            if elem in ['Инструктор','Статус','Машина']:
+                if elem == 'Статус' and self.type_change == 'Курсанты':
+                    self.combo_box_status = QComboBox()
+                    self.statuses = ['Заявка','Обучается','Закончил обучение', 'Отказ']
+                    for status in self.statuses:
+                        self.combo_box_status.addItem(status)
+                    self.scroll_layout.addWidget(self.name_input_label)
+                    self.scroll_layout.addWidget(self.combo_box_status)
+                    self.combo_box_status.setStyleSheet("background-color: #81b7f7; padding: 10px;")
+                
+                if elem == 'Инструктор' and self.type_change == 'Курсанты':
+                    self.combo_box_trainer = QComboBox()
+                    self.trainers = await self.get_trainers()
+                    for trainer in self.trainers:
+                        self.combo_box_trainer.addItem(str(trainer['id_user']))
+                    self.scroll_layout.addWidget(self.name_input_label)
+                    self.scroll_layout.addWidget(self.combo_box_trainer)
+                    self.combo_box_trainer.setStyleSheet("background-color: #81b7f7; padding: 10px;")
 
-            self.scroll_layout.addWidget(self.name_input_label)
-            self.scroll_layout.addWidget(self.name_input)
+
+            else:
+                self.name_input = QLineEdit()
+                self.name_input.setPlaceholderText(elem)
+
+                self.scroll_layout.addWidget(self.name_input_label)
+                self.scroll_layout.addWidget(self.name_input)
             self.name_input.setStyleSheet("background-color: #81b7f7")
-        
+
         self.scroll_content.setLayout(self.scroll_layout)
         self.scroll_content.setStyleSheet("background-color: #F0F4F8;")
-        self.scroll_area.setWidget(self.scroll_content)        
+        self.scroll_area.setWidget(self.scroll_content)
         self.menu_v_layout.addWidget(self.scroll_area)
 
         self.menu_v_layout.addItem(spacerItem2)
@@ -728,15 +745,23 @@ class ChangePage(QWidget, Settings):
         arr_fields = []
         for child in self.scroll_content.children():
             if isinstance(child, QLineEdit):
-                arr_fields.append(child.text())
-        
-        
-        await self.create_manager(*arr_fields)
-        # self.update_user_data()
+                if child.text() == "" or child.text() == None:
+                    self.show_error_message("Ошибка", "Заполните все поля")
+                    return
+                else:
+                    arr_fields.append(child.text())
+
+        try:
+            await self.create_manager(*arr_fields)
+        except:
+            self.show_error_message(
+                "Ошибка добавления объекта", "Возникла ошибка, объект не добавлен.")
+            return
+
         main_widget = MainPage(self.stack, self.buttons)
         self.stack.addWidget(main_widget)
         self.stack.setCurrentWidget(main_widget)
-        print("Норм")
+
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)

@@ -1,4 +1,4 @@
-from PyQt6.QtWidgets import QApplication, QLabel, QLineEdit, QMainWindow, QStackedWidget, QVBoxLayout, QWidget, QPushButton, QHBoxLayout, QSpacerItem, QSizePolicy
+from PyQt6.QtWidgets import QApplication,QMessageBox, QLabel, QLineEdit, QMainWindow, QStackedWidget, QVBoxLayout, QWidget, QPushButton, QHBoxLayout, QSpacerItem, QSizePolicy
 from PyQt6.QtGui import QIcon, QCursor
 from PyQt6.QtCore import Qt
 import sys
@@ -110,63 +110,29 @@ class ResizableWidget(QWidget):
 
 class Settings():
     def __init__(self):
-        self.user_data = {
-            'surname': None,
-            'name': None,
-            'patronymic': None,
-            'login': None,
-            'password': None,
-            'role': None
+        self.manager_data = ['Фамилия', 'Имя', 'Отчество', 'Логин', 'Пароль',]
+        self.student_data = ['Фамилия', 'Имя', 'Отчество', 'Логин', 'Пароль', 'Номер телефона', 'Инструктор', 'Статус']
+        self.trainer_data = ['Фамилия', 'Имя', 'Отчество', 'Логин', 'Пароль', 'Машина']
+        self.payment_data = ['Сумма', 'Дата', 'Статус']
+        self.lesson_data = ['Дата', 'Статус']
+        self.car_data = ['Марка', 'Номер']
+
+        self.types_change = {
+            'Менеджеры': self.manager_data,
+            'Курсанты': self.student_data,
+            'Инструкторы': self.trainer_data,
+            'Платежи': self.payment_data,
+            'Уроки': self.lesson_data,
+            'Автомобили': self.car_data,
         }
 
-        self.student_data = {
-            'id_user': None,
-            'number_phone': None,
-            'trainer_id': None,
-            'status_student': None,
-            'desc_object': None
-        }
-
-        self.trainer_data = {
-            'id_user': None,
-            'car_id': None,
-            'desc_object': None
-        }
-
-        self.payment_data = {
-            'id_payment': None,
-            'student_id': None,
-            'amount': None,
-            'date_payment': None,
-            'status_payment': None,
-            'desc_object': None
-        }
-
-        self.manager_data = {
-            'id_user': None,
-            'desc_object': None
-        }
-
-        self.lesson_data = {
-            'id_lesson': None,
-            'student_id': None,
-            'trainer_id': None,
-            'date_lesson': None,
-            'status_lesson': None,
-            'desc_object': None
-        }
-
-        self.car_data = {
-            'id_car': None,
-            'brand': None,
-            'number': None,
-            'desc_object': None
-        }
-
-        self.admin_data = {
-            'id_user': None,
-            'desc_object': None
-        }
+    def show_error_message(self, title, message):
+        error_dialog = QMessageBox()
+        error_dialog.setIcon(QMessageBox.Icon.Critical)
+        error_dialog.setWindowTitle(title)
+        error_dialog.setText(message)
+        error_dialog.setStandardButtons(QMessageBox.StandardButton.Ok)
+        error_dialog.exec()
 
     async def connect_to_db(self):
         try:
@@ -229,7 +195,7 @@ class Settings():
 
         try:
             async with connection.cursor() as cursor:
-                sql = "SELECT * FROM Users where role = 'Manager'"
+                sql = "SELECT * FROM Users where role = 'Student'"
                 await cursor.execute(sql)
                 manager = await cursor.fetchall()
             return manager
@@ -257,7 +223,7 @@ class Settings():
 
         try:
             async with connection.cursor() as cursor:
-                sql = "SELECT * FROM Users where role = 'Manager'"
+                sql = "SELECT * FROM Payments"
                 await cursor.execute(sql)
                 manager = await cursor.fetchall()
             return manager
@@ -271,7 +237,7 @@ class Settings():
 
         try:
             async with connection.cursor() as cursor:
-                sql = "SELECT * FROM Users where role = 'Manager'"
+                sql = "SELECT * FROM Lessons"
                 await cursor.execute(sql)
                 manager = await cursor.fetchall()
             return manager
