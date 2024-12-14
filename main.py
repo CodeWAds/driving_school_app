@@ -150,7 +150,7 @@ class LoginPage(ResizableWidget, Settings):
 
         global user
         user = await self.check_passwd()
-        if user:
+        if user['role'] in ['Admin',"Manager"]:
             main_widget = MainPage(self.stack, self.buttons)
             self.stack.addWidget(main_widget)
             self.stack.setCurrentWidget(main_widget)
@@ -176,14 +176,14 @@ class MainPage(QWidget, Settings):
             button.setEnabled(True)
         if user['role'] == "Admin":
             self.create_page_admin()
-        else:
+        elif user['role'] == "Manager":
             self.create_page_manager()
 
     def create_page_admin(self):
 
         self.timer = QTimer()
-        self.timer.timeout.connect(self.update_info)
-        self.timer.start(5000)
+        self.timer.timeout.connect(self.update_info_admin)
+        self.timer.start(10000)
 
         self.menu_v_layout = QVBoxLayout()
         self.menu_h_layout = QHBoxLayout()
@@ -223,7 +223,7 @@ class MainPage(QWidget, Settings):
         self.label_information1.setObjectName("label_info1")
         self.label_information2 = QLabel(f"""Количество
 курсантов:
-1""")
+{self.count_students}""")
         self.label_information2.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.label_information2.setObjectName("label_info2")
         self.menu_v_layout3.addItem(spacerItem2)
@@ -243,7 +243,7 @@ class MainPage(QWidget, Settings):
 
         self.setLayout(self.menu_v_layout)
 
-        self.update_info()
+        self.update_info_admin()
 
         self.button_add.clicked.connect(self.add_manager)
 
@@ -253,6 +253,10 @@ class MainPage(QWidget, Settings):
         self.stack.setCurrentWidget(main_widget)
 
     def create_page_manager(self):
+
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.update_info_manager)
+        self.timer.start(10000)
 
         self.menu_v_layout = QVBoxLayout()
         self.menu_h_layout = QHBoxLayout()
@@ -273,11 +277,15 @@ class MainPage(QWidget, Settings):
         self.menu_h_layout.addWidget(self.label_vhod)
         self.menu_v_layout.addLayout(self.menu_h_layout)
 
-        self.label_information1 = QLabel(f"""
-                                         Количество инструкторов: 
-                                         {self.count_instructors}""")
+        self.label_information1 = QLabel(f"""Количество 
+инструкторов: 
+{self.count_instructors}""")
+        self.label_information1.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.label_information1.setObjectName("label_info1")
-        self.label_information2 = QLabel("Информация2")
+        self.label_information2 = QLabel(f"""Количество
+курсантов:
+{self.count_students}""")
+        self.label_information2.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.label_information2.setObjectName("label_info2")
 
         self.menu_h_layout2.addItem(spacerItem)
@@ -291,8 +299,28 @@ class MainPage(QWidget, Settings):
 
         self.setLayout(self.menu_v_layout)
 
+        self.update_info_manager()
+
     @asyncSlot()
-    async def update_info(self):
+    async def update_info_manager(self):
+        self.instructors = await self.get_count_trainers()
+        self.students = await self.get_count_students()
+
+        self.count_instructors = self.instructors[0]['count_trainer']
+        self.count_students = self.students[0]['count_student']
+        self.label_information1.setText(f"""Количество 
+инструкторов: 
+{self.count_instructors}"""
+                                        )
+        self.label_information2.setText(f"""Количество 
+курсантов: 
+{self.count_students}""")
+        self.label_information1.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.label_information2.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+
+    @asyncSlot()
+    async def update_info_admin(self):
         current_items = []
         for i in range(self.list_widget.count()):
             item = self.list_widget.item(i)
@@ -301,15 +329,23 @@ class MainPage(QWidget, Settings):
             current_items.append(widget)
 
         self.managers = await self.get_managers()
+        self.instructors = await self.get_count_trainers()
+        self.students = await self.get_count_students()
 
-        self.count_instructors = len(self.managers)
+        self.count_instructors = self.instructors[0]['count_trainer']
+        self.count_students = self.students[0]['count_student']
         self.label_information1.setText(f"""Количество 
 инструкторов: 
 {self.count_instructors}"""
                                         )
+        self.label_information2.setText(f"""Количество 
+курсантов: 
+{self.count_students}"""
+                                        )
         self.label_information1.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.label_information2.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        manager_names = [item["name"] for item in self.managers]
+        manager_names = [item["desc_object"] for item in self.managers]
         items_to_add = [
             name for name in manager_names if name not in current_items]
         items_to_remove = [
@@ -339,7 +375,7 @@ class MainPage(QWidget, Settings):
             delete_button.setIconSize(QSize(24, 24))
             delete_button.setCursor(Qt.CursorShape.PointingHandCursor)
             delete_button.clicked.connect(
-                lambda _, m=item: self.delete_manager(m))
+                lambda _, m=item: self.drop_manager(m))
 
             layout.addWidget(name_label)
             layout.addItem(spacer)
@@ -368,20 +404,27 @@ class MainPage(QWidget, Settings):
             f"Edit manager: {manager}")
 
     @asyncSlot()
-    async def delete_manager(self, manager):
-        await self.drop_manager(manager)
-        print(f"Удалён {manager}")
+    async def drop_manager(self, manager):
+        await self.delete_manager(manager)
 
 
-class CadTeachPayCarPage(QWidget):
+class CadTeachPayCarPage(QWidget,Settings):
     def __init__(self, stack, buttons):
         super().__init__()
         self.stack = stack
         self.buttons = buttons
         self.create_page()
 
-    def create_page(self):
+        # Словарь функций для загрузки данных
+        self.data_loaders = {
+            "Курсанты": self.get_students,
+            "Инструкторы": self.get_trainers,
+            "Автомобили": self.get_cars,
+            "Занятия": self.get_lessons,
+            "Платежи": self.get_payments,
+        }
 
+    def create_page(self):
         self.menu_v_layout = QVBoxLayout()
         self.menu_h_layout = QHBoxLayout()
 
@@ -389,9 +432,6 @@ class CadTeachPayCarPage(QWidget):
             40, 20, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding)
         spacerItem1 = QSpacerItem(
             40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
-
-        spacerItem2 = QSpacerItem(
-            20, 40, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
 
         self.button_add = QPushButton("Добавить")
         self.button_add.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -403,7 +443,6 @@ class CadTeachPayCarPage(QWidget):
         self.menu_v_layout.addItem(spacerItem)
 
         self.menu_h_layout.addLayout(self.menu_v_layout)
-
         self.menu_h_layout.addWidget(self.list_widget)
 
         self.setLayout(self.menu_h_layout)
@@ -420,78 +459,105 @@ class CadTeachPayCarPage(QWidget):
 
     @asyncSlot()
     async def update_info(self):
-        current_items = []
-        for i in range(self.list_widget.count()):
-            item = self.list_widget.item(i)
-            widget = self.list_widget.itemWidget(
-                item).layout().itemAt(0).widget().text()
-            current_items.append(widget)
+        # Определяем текущую страницу
+        current_page = None
+        for button in self.buttons:
+            if button.isChecked():
+                current_page = button.text()
+                break
 
-        manager_names = [item["name"] for item in self.managers]
-        items_to_add = [
-            name for name in manager_names if name not in current_items]
-        items_to_remove = [
-            name for name in current_items if name not in manager_names]
+        if not current_page or current_page not in self.data_loaders:
+            return
 
+        # Загружаем данные для текущей страницы
+        loader_function = self.data_loaders[current_page]
+        self.object = await loader_function()
+
+        # Обновляем интерфейс
+        self.populate_list_widget()
+
+    def populate_list_widget(self):
+        # Получаем имена объектов
+        current_items = [self.list_widget.itemWidget(self.list_widget.item(i))
+                         .layout().itemAt(0).widget().text()
+                         for i in range(self.list_widget.count())]
+
+        manager_names = [item["desc_object"] for item in self.object]
+        items_to_add = [name for name in manager_names if name not in current_items]
+        items_to_remove = [name for name in current_items if name not in manager_names]
+
+        # Добавляем новые элементы
         for item in items_to_add:
-            item_widget = QWidget()
-            layout = QHBoxLayout()
+            item_widget = self.create_list_widget_item(item)
+            list_item = QListWidgetItem()
+            list_item.setSizeHint(item_widget.sizeHint())
+            self.list_widget.addItem(list_item)
+            self.list_widget.setItemWidget(list_item, item_widget)
 
-            spacer = QSpacerItem(
-                40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
-
-            # Добавляем текст
-            name_label = QLabel(f"{item}")
-            layout.addWidget(name_label)
-
-            # Создаем кнопку редактирования
-            edit_button = QPushButton()
-            edit_button.setIcon(QIcon("./src/img/pencil.svg"))
-            edit_button.setIconSize(QSize(24, 24))
-            edit_button.setCursor(Qt.CursorShape.PointingHandCursor)
-            edit_button.clicked.connect(lambda _, m=item: self.edit_manager(m))
-
-            # Создаем кнопку удаления
-            delete_button = QPushButton()
-            delete_button.setIcon(QIcon("./src/img/trash.svg"))
-            delete_button.setIconSize(QSize(24, 24))
-            delete_button.setCursor(Qt.CursorShape.PointingHandCursor)
-            delete_button.clicked.connect(
-                lambda _, m=item: self.delete_manager(m))
-
-            layout.addWidget(name_label)
-            layout.addItem(spacer)
-            layout.addWidget(edit_button)
-            layout.addWidget(delete_button)
-
-            # Устанавливаем макет на виджет
-            item_widget.setLayout(layout)
-
-            # Добавляем виджет в QListWidget
-            item = QListWidgetItem()
-            item.setSizeHint(item_widget.sizeHint())
-            self.list_widget.addItem(item)
-            self.list_widget.setItemWidget(item, item_widget)
-
-        # Проходим с конца, чтобы индексы не смещались
+        # Удаляем старые элементы
         for i in range(self.list_widget.count() - 1, -1, -1):
-            item = self.list_widget.item(i)  # Получаем QListWidgetItem
-            widget = self.list_widget.itemWidget(
-                item).layout().itemAt(0).widget().text()
-
+            item = self.list_widget.item(i)
+            widget = self.list_widget.itemWidget(item).layout().itemAt(0).widget().text()
             if widget in items_to_remove:
                 self.list_widget.takeItem(i)
 
-    def edit_manager(self, manager):
-        print(
-            f"Edit manager: {manager}")
+    def create_list_widget_item(self, item_name):
+        item_widget = QWidget()
+        layout = QHBoxLayout()
+        spacer = QSpacerItem(40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+
+        name_label = QLabel(item_name)
+        layout.addWidget(name_label)
+
+        edit_button = QPushButton()
+        edit_button.setIcon(QIcon("./src/img/pencil.svg"))
+        edit_button.setIconSize(QSize(24, 24))
+        edit_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        edit_button.clicked.connect(lambda: self.edit_object(item_name))
+
+        delete_button = QPushButton()
+        delete_button.setIcon(QIcon("./src/img/trash.svg"))
+        delete_button.setIconSize(QSize(24, 24))
+        delete_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        delete_button.clicked.connect(lambda: self.delete_object(item_name))
+
+        layout.addWidget(name_label)
+        layout.addItem(spacer)
+        layout.addWidget(edit_button)
+        layout.addWidget(delete_button)
+
+        item_widget.setLayout(layout)
+        return item_widget
 
     @asyncSlot()
-    async def delete_manager(self, manager):
-        pass
+    async def edit_manager(self, manager):
+        print(f"Edit manager: {manager}")
+
+    @asyncSlot()
+    async def delete_object(self, item_name):
+        self.delete_data = {
+            "Курсанты": self.delete_student,
+            "Инструкторы": self.delete_trainer,
+            "Автомобили": self.delete_car,
+            # "Занятия": self.delete_lesson,
+            # "Платежи": self.delete_payment,
+        }
+        try:
+            for button in self.buttons:
+                if button.isChecked():
+                    current_button = button.text()
+            
+            delete_func = self.delete_data.get(current_button)
+            
+            await delete_func(item_name)
+
+        except Exception as e:
+            self.show_error_message(
+                "Ошибка добавления объекта", f"Возникла ошибка, объект не добавлен: {str(e)}")
 
 
-class LessonsPage(QWidget):
+
+class LessonsPage(QWidget, Settings):
     def __init__(self, stack, buttons):
         super().__init__()
         self.current_date = QDate.currentDate()
@@ -506,9 +572,15 @@ class LessonsPage(QWidget):
 
         self.stack = stack
         self.buttons = buttons
+        self.data_week = []
         self.create_page()
 
     def create_page(self):
+
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.update_info)
+        self.timer.start(3000)
+
         spacerItem = QSpacerItem(
             40, 20, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding)
         spacerItem1 = QSpacerItem(
@@ -558,13 +630,12 @@ class LessonsPage(QWidget):
                 widget.setParent(None)
 
         # Генерация дней недели строками
-        date = self.start_date
+        date = self.start_date  # Локальная переменная, чтобы не менять глобальное состояние
         cell_style = "QWidget { border: 1px solid gray; }"
 
         for i in range(7):  # 7 дней в неделе
             day_widget = QWidget()
             day_layout = QHBoxLayout(day_widget)
-            # day_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
             day_layout.setContentsMargins(2, 2, 2, 2)
 
             # День недели и дата
@@ -576,21 +647,55 @@ class LessonsPage(QWidget):
             day_layout.addWidget(day_label)
 
             # Кнопки для временных интервалов
-            for hour in range(6, 22, 3):
+            for hour in range(6, 22, 3):  # Пример интервалов с 6:00 до 21:00 (каждые 3 часа)
                 time_button = QPushButton(f"{hour}:00")
                 time_button.setObjectName("time_button")
+
+                date_str = date.toString("yyyy-MM-dd")  # Получаем строку с датой
+
+                # Проверка данных недели
+                for lesson in self.data_week:
+                    # Получаем строку с датой урока и время урока
+                    lesson_date_str = lesson['date_lesson'].strftime('%Y-%m-%d')  # Преобразуем datetime в строку
+                    lesson_time = lesson['time_lesson']
+
+                    if lesson_date_str == date_str and lesson_time == f"{hour}:00":
+                        status = lesson['status_lesson']
+                        # Если урок проведен, меняем цвет на красный
+                        if status == "Назначено":
+                            time_button.setStyleSheet("background-color: red;")
+                        # Если урок запланирован, меняем цвет на зеленый
+                        elif status == "Свободно":
+                            time_button.setStyleSheet("background-color: green;")
+                        elif status == "Проведено":
+                            time_button.setStyleSheet("background-color: blue;")
+                        break
+                
                 day_layout.addWidget(time_button)
                 time_button.clicked.connect(self.on_time_button_clicked)
 
             day_widget.setStyleSheet(cell_style)
             self.week_layout.addWidget(day_widget)
-            date = date.addDays(1)
+            date = date.addDays(1)  # Переходим к следующему дню
 
-    def update_week_label(self):
+
+    @asyncSlot()
+    async def update_info(self):
+        self.update_week_label()
+        self.display_week()
+
+
+    @asyncSlot()
+    async def update_week_label(self):
         end_date = self.start_date.addDays(6)
         start_text = self.locale.toString(self.start_date, "d MMMM yyyy")
         end_text = self.locale.toString(end_date, "d MMMM yyyy")
         self.week_label.setText(f"{start_text} - {end_text}")
+        
+        start_text = self.start_date.toString("yyyy-MM-dd")
+        end_text = end_date.toString("yyyy-MM-dd")
+
+        self.data_week = await self.get_data_week(str(start_text), str(end_text))
 
     def show_previous_week(self):
         self.start_date = self.start_date.addDays(-7)
@@ -605,7 +710,9 @@ class LessonsPage(QWidget):
         self.display_week()
 
     def on_time_button_clicked(self):
-        main_widget = ChangePage(self.stack, "", self.buttons)
+        self.time = None
+        main_widget = ChangePage(
+            self.stack, "Занятия", self.buttons, self.time)
         self.stack.addWidget(main_widget)
         self.stack.setCurrentWidget(main_widget)
 
@@ -645,8 +752,9 @@ class ReportsPage(QWidget):
 
 
 class ChangePage(QWidget, Settings):
-    def __init__(self, stack, type_change, buttons):
+    def __init__(self, stack, type_change, buttons, time=None):
         super().__init__()
+        self.time = time
         self.stack = stack
         self.type_change = type_change
         self.buttons = buttons
@@ -688,16 +796,18 @@ class ChangePage(QWidget, Settings):
 
         for elem in self.types_change[self.type_change]:
             self.name_input_label = QLabel(elem)
-            if elem in ['Инструктор','Статус','Машина']:
+            if elem in ['Инструктор', 'Статус', 'Машина']:
                 if elem == 'Статус' and self.type_change == 'Курсанты':
                     self.combo_box_status = QComboBox()
-                    self.statuses = ['Заявка','Обучается','Закончил обучение', 'Отказ']
+                    self.statuses = ['Заявка', 'Обучается',
+                                     'Закончил обучение', 'Отказ']
                     for status in self.statuses:
                         self.combo_box_status.addItem(status)
                     self.scroll_layout.addWidget(self.name_input_label)
                     self.scroll_layout.addWidget(self.combo_box_status)
-                    self.combo_box_status.setStyleSheet("background-color: #81b7f7; padding: 10px;")
-                
+                    self.combo_box_status.setStyleSheet(
+                        "background-color: #81b7f7; padding: 10px;")
+
                 if elem == 'Инструктор' and self.type_change == 'Курсанты':
                     self.combo_box_trainer = QComboBox()
                     self.trainers = await self.get_trainers()
@@ -705,8 +815,19 @@ class ChangePage(QWidget, Settings):
                         self.combo_box_trainer.addItem(str(trainer['id_user']))
                     self.scroll_layout.addWidget(self.name_input_label)
                     self.scroll_layout.addWidget(self.combo_box_trainer)
-                    self.combo_box_trainer.setStyleSheet("background-color: #81b7f7; padding: 10px;")
+                    self.combo_box_trainer.setStyleSheet(
+                        "background-color: #81b7f7; padding: 10px;")
 
+                if elem == 'Машина' and self.type_change == 'Инструкторы':
+                    self.combo_box_car = QComboBox()
+                    self.cars = await self.get_cars()
+                    for car in self.cars:
+                        self.combo_box_car.addItem(str(car['id_car']))
+                    self.scroll_layout.addWidget(self.name_input_label)
+                    self.scroll_layout.addWidget(self.combo_box_car)
+                    self.combo_box_car.setStyleSheet(
+                        "background-color: #81b7f7; padding: 10px;")
+                    
 
             else:
                 self.name_input = QLineEdit()
@@ -736,27 +857,66 @@ class ChangePage(QWidget, Settings):
         self.save_button.clicked.connect(self.save_changes)
 
     def back_to_manager_page(self):
-        main_widget = MainPage(self.stack, self.buttons)
-        self.stack.addWidget(main_widget)
-        self.stack.setCurrentWidget(main_widget)
+        page_mapping = {
+            "Главная": MainPage,
+            "Курсанты": CadTeachPayCarPage,
+            "Инструкторы": CadTeachPayCarPage,
+            "Автомобили": CadTeachPayCarPage,
+            "Занятия": LessonsPage,
+            "Платежи": CadTeachPayCarPage,
+            "Отчет": ReportsPage
+        }
+
+        for button in self.buttons:
+            if button.isChecked():
+                current_button = button.text()
+
+        page_class = page_mapping.get(current_button)
+        if page_class:
+            page_instance = page_class(self.stack, self.buttons)
+            self.stack.addWidget(page_instance)
+            self.stack.setCurrentWidget(page_instance)
 
     @asyncSlot()
     async def save_changes(self):
+        self.create_data = {
+            "Главная": self.create_manager,
+            "Курсанты": self.create_student,
+            "Инструкторы": self.create_trainer,
+            "Автомобили": self.create_car,
+            "Занятия": self.create_lesson,
+            "Платежи": self.create_payment,
+        }
+
         arr_fields = []
         for child in self.scroll_content.children():
             if isinstance(child, QLineEdit):
-                if child.text() == "" or child.text() == None:
+                text = child.text()
+                if not text:
                     self.show_error_message("Ошибка", "Заполните все поля")
                     return
-                else:
-                    arr_fields.append(child.text())
+                arr_fields.append(text)
+            if isinstance(child, QComboBox):
+                text = child.currentText()
+                if not text:
+                    self.show_error_message("Ошибка", "Заполните все поля")
+                    return
+                arr_fields.append(text)
+        
+        arr_fields.append(self.label_name_object_input.text())
 
         try:
-            await self.create_manager(*arr_fields)
-        except:
+            for button in self.buttons:
+                if button.isChecked():
+                    current_button = button.text()
+            
+            create_func = self.create_data.get(current_button)
+            
+            await create_func(*arr_fields)
+
+        except Exception as e:
             self.show_error_message(
-                "Ошибка добавления объекта", "Возникла ошибка, объект не добавлен.")
-            return
+                "Ошибка добавления объекта", f"Возникла ошибка, объект не добавлен: {str(e)}")
 
         main_widget = MainPage(self.stack, self.buttons)
         self.stack.addWidget(main_widget)

@@ -1,9 +1,10 @@
-from PyQt6.QtWidgets import QApplication,QMessageBox, QLabel, QLineEdit, QMainWindow, QStackedWidget, QVBoxLayout, QWidget, QPushButton, QHBoxLayout, QSpacerItem, QSizePolicy
+from PyQt6.QtWidgets import QApplication, QMessageBox, QLabel, QLineEdit, QMainWindow, QStackedWidget, QVBoxLayout, QWidget, QPushButton, QHBoxLayout, QSpacerItem, QSizePolicy
 from PyQt6.QtGui import QIcon, QCursor
 from PyQt6.QtCore import Qt
 import sys
-import pymysql
+# import pymysql
 import bcrypt
+from contextlib import asynccontextmanager
 import aiomysql
 
 
@@ -18,8 +19,8 @@ class ResizableWidget(QWidget):
         font_size2 = max(7, min(width // 100, 20))
 
         self.setStyleSheet(f"""
-            QMainWindow {{background-color: #F0F4F8;}}               
-            
+            QMainWindow {{background-color: #F0F4F8;}}
+
             QLabel {{
                 font-size: {font_size*1.1}px;
                 color: black;
@@ -27,7 +28,7 @@ class ResizableWidget(QWidget):
 
             QLabel#label_vhod {{
                 font-weight: bold;
-                font-size: {font_size * 2}px; 
+                font-size: {font_size * 2}px;
             }}
 
             QPushButton {{
@@ -56,11 +57,11 @@ class ResizableWidget(QWidget):
                 background-color: #81b7f7;
                 border: none; border-radius: 15px;
                 color: #FFFFFF;
-            }}     
+            }}
 
             QLabel#label_info1 {{
                 background-color: #81b7f7;
-            }}  
+            }}
 
             QLabel#label_info2 {{
                 background-color: #81b7f7;
@@ -69,7 +70,7 @@ class ResizableWidget(QWidget):
             QListWidget {{
                 background-color: #81b7f7;
             }}
-            
+
             QPushButton#time_button {{
                 font-size: {font_size}px;
             }}
@@ -80,20 +81,20 @@ class ResizableWidget(QWidget):
                 QPushButton {{
                     background-color: #4A90E2;
                     color: #FFFFFF;
-                    padding: 10px; 
+                    padding: 10px;
                     border-radius: 0px;
                     font-size: {font_size}px;
-                    border-right: 1px solid white; 
+                    border-right: 1px solid white;
                 }}
                 QPushButton:hover {{
                     background-color: #2767f2;
-                    color: #FFFFFF; 
-                    padding: 10px; 
+                    color: #FFFFFF;
+                    padding: 10px;
                     border-radius: 0px;
                 }}
                 QPushButton:checked {{
                     background-color: #2767f2;
-                    color: #FFFFFF; 
+                    color: #FFFFFF;
                 }}
             """)
             button.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -111,8 +112,10 @@ class ResizableWidget(QWidget):
 class Settings():
     def __init__(self):
         self.manager_data = ['Фамилия', 'Имя', 'Отчество', 'Логин', 'Пароль',]
-        self.student_data = ['Фамилия', 'Имя', 'Отчество', 'Логин', 'Пароль', 'Номер телефона', 'Инструктор', 'Статус']
-        self.trainer_data = ['Фамилия', 'Имя', 'Отчество', 'Логин', 'Пароль', 'Машина']
+        self.student_data = ['Фамилия', 'Имя', 'Отчество', 'Логин',
+                             'Пароль', 'Номер телефона', 'Инструктор', 'Статус']
+        self.trainer_data = ['Фамилия', 'Имя',
+                             'Отчество', 'Логин', 'Пароль', 'Машина']
         self.payment_data = ['Сумма', 'Дата', 'Статус']
         self.lesson_data = ['Дата', 'Статус']
         self.car_data = ['Марка', 'Номер']
@@ -122,9 +125,14 @@ class Settings():
             'Курсанты': self.student_data,
             'Инструкторы': self.trainer_data,
             'Платежи': self.payment_data,
-            'Уроки': self.lesson_data,
+            'Занятия': self.lesson_data,
             'Автомобили': self.car_data,
         }
+
+    def hash_password(self, password):
+        salt = bcrypt.gensalt()
+        hashed_password = bcrypt.hashpw(password.encode('utf-8'), salt)
+        return hashed_password.decode('utf-8')
 
     def show_error_message(self, title, message):
         error_dialog = QMessageBox()
@@ -134,7 +142,9 @@ class Settings():
         error_dialog.setStandardButtons(QMessageBox.StandardButton.Ok)
         error_dialog.exec()
 
-    async def connect_to_db(self):
+    @asynccontextmanager
+    async def get_connection(self):
+        connection = None
         try:
             connection = await aiomysql.connect(
                 host='150.241.90.210',
@@ -143,134 +153,171 @@ class Settings():
                 db='driving_school',
                 cursorclass=aiomysql.DictCursor
             )
-            return connection
-        except Exception as ex:
-            print(ex)
+            yield connection
+        finally:
+            if connection:
+                connection.close()
+
+    async def execute_query(self, query, params=None):
+        async with self.get_connection() as connection:
+            async with connection.cursor() as cursor:
+                await cursor.execute(query, params or ())
+                return await cursor.fetchall()
+
+    async def execute_single_query(self, query, params=None):
+        async with self.get_connection() as connection:
+            async with connection.cursor() as cursor:
+                await cursor.execute(query, params or ())
+                return await cursor.fetchone()
+
+    async def commit_query(self, query, params=None):
+        async with self.get_connection() as connection:
+            async with connection.cursor() as cursor:
+                await cursor.execute(query, params or ())
+                await connection.commit()
 
     async def find_user_by_login(self, login):
-        connection = await self.connect_to_db()
-        if not connection:
-            return None
-
-        try:
-            async with connection.cursor() as cursor:
-                sql = "SELECT * FROM Users WHERE login = %s"
-                await cursor.execute(sql, (login,))
-                user = await cursor.fetchone()
-            return user
-        except Exception as ex:
-            return None
-        finally:
-            connection.close()
+        sql = "SELECT * FROM Users WHERE login = %s"
+        return await self.execute_single_query(sql, (login,))
 
     async def check_passwd(self):
         user = await self.find_user_by_login(self.login)
-        if user:
-            stored_password = user['password']
-            if bcrypt.checkpw(self.passwd.encode('utf-8'), stored_password.encode('utf-8')):
-                return user
-            else:
-                return False
-        else:
-            return False
+        if user and bcrypt.checkpw(self.passwd.encode('utf-8'), user['password'].encode('utf-8')):
+            return user
+        return None
+
+
+### GET ###
 
     async def get_managers(self):
-        connection = await self.connect_to_db()
-        if not connection:
-            return None
-
-        try:
-            async with connection.cursor() as cursor:
-                sql = "SELECT * FROM Users where role = 'Manager'"
-                await cursor.execute(sql)
-                manager = await cursor.fetchall()
-            return manager
-        except Exception as ex:
-            return None
+        sql = """
+            SELECT Managers.desc_object FROM Users
+            INNER JOIN Managers ON Users.id_user = Managers.id_user
+            WHERE role = 'Manager'
+        """
+        return await self.execute_query(sql)
 
     async def get_students(self):
-        connection = await self.connect_to_db()
-        if not connection:
-            return None
-
-        try:
-            async with connection.cursor() as cursor:
-                sql = "SELECT * FROM Users where role = 'Student'"
-                await cursor.execute(sql)
-                manager = await cursor.fetchall()
-            return manager
-        except Exception as ex:
-            return None
+        sql = """
+            SELECT * FROM Users
+            INNER JOIN Students ON Users.id_user = Students.id_user
+            WHERE role = 'Student'
+        """
+        return await self.execute_query(sql)
 
     async def get_trainers(self):
-        connection = await self.connect_to_db()
-        if not connection:
-            return None
-
-        try:
-            async with connection.cursor() as cursor:
-                sql = "SELECT * FROM Users where role = 'Manager'"
-                await cursor.execute(sql)
-                manager = await cursor.fetchall()
-            return manager
-        except Exception as ex:
-            return None
+        sql = """
+            SELECT * FROM Users
+            INNER JOIN Trainers ON Users.id_user = Trainers.id_user
+            WHERE role = 'Trainer'
+        """
+        return await self.execute_query(sql)
 
     async def get_payments(self):
-        connection = await self.connect_to_db()
-        if not connection:
-            return None
+        sql = "SELECT * FROM Payments"
+        return await self.execute_query(sql)
 
-        try:
-            async with connection.cursor() as cursor:
-                sql = "SELECT * FROM Payments"
-                await cursor.execute(sql)
-                manager = await cursor.fetchall()
-            return manager
-        except Exception as ex:
-            return None
+    async def get_cars(self):
+        sql = "SELECT * FROM Cars"
+        return await self.execute_query(sql)
 
     async def get_lessons(self):
-        connection = await self.connect_to_db()
-        if not connection:
-            return None
+        sql = "SELECT * FROM Lessons"
+        return await self.execute_query(sql)
 
-        try:
-            async with connection.cursor() as cursor:
-                sql = "SELECT * FROM Lessons"
-                await cursor.execute(sql)
-                manager = await cursor.fetchall()
-            return manager
-        except Exception as ex:
-            return None
+    async def get_data_week(self, start_text, end_text):
+
+        sql = "SELECT * FROM Lessons WHERE date_lesson BETWEEN %s AND %s"
+
+        return await self.execute_query(sql, (start_text, end_text))
+
+    async def get_count_students(self):
+
+        sql = "SELECT COUNT(*) as count_student FROM Users WHERE role = 'Student'"
+
+        return await self.execute_query(sql)
+
+    async def get_count_trainers(self):
+
+        sql = "SELECT COUNT(*) as count_trainer FROM Users WHERE role = 'Trainer'"    
+
+        return await self.execute_query(sql)
+
+
+### CREATE ###
+
+    async def create_manager(self, surname, name, patronymic, login, password, desc_object):
+
+        password = self.hash_password(password)
+
+        sql_users = """INSERT INTO Users (surname, name, patronymic, login, password, role) VALUES (%s, %s, %s, %s, %s, 'Manager');
+        INSERT INTO Managers (id_user, desc_object) VALUES (LAST_INSERT_ID(), %s)"""
+
+        await self.commit_query(sql_users, (surname, name, patronymic, login, password,desc_object))
+
+    async def create_trainer(self, surname, name, patronymic, login, password, car, desc_object):
+
+        password = self.hash_password(password)
+
+        password = self.hash_password(password)
+
+        sql_users = """INSERT INTO Users (surname, name, patronymic, login, password, role) 
+                        VALUES (%s, %s, %s, %s, %s, 'Trainer'); 
+                        INSERT INTO Trainers (id_user, car_id, desc_object) 
+                        VALUES (LAST_INSERT_ID(), %s, %s)"""
+
+        await self.commit_query(sql_users, (surname, name, patronymic, login, password, car, desc_object))
+
+    async def create_car(self, brand, number, desc_object):
+
+        sql = "INSERT INTO Cars (brand, number, desc_object) VALUES (%s, %s, %s)"
+
+        await self.commit_query(sql, (brand, number, desc_object))
+
+    async def create_student(self, surname, name, patronymic, login, password, num_phone, trainer, status, desc_object):
+
+        password = self.hash_password(password)
+
+        sql_users = """INSERT INTO Users (surname, name, patronymic, login, password, role) 
+                        VALUES (%s, %s, %s, %s, %s, 'Student'); 
+                        INSERT INTO Students (id_user, number_phone, trainer_id, status_student, desc_object) 
+                        VALUES (LAST_INSERT_ID(), %s, %s, %s, %s)"""
+
+        await self.commit_query(sql_users, (surname, name, patronymic, login, password, num_phone, trainer, status, desc_object))
+
+    async def create_lesson(self, date, status, desc_object):
+        pass
+
+    async def create_payment(self, student_id, amount, date_payment, status_payment, desc_object):
+
+        sql = "INSERT INTO Payments (student_id, amount, date_payment, status_payment, desc_object) VALUES (%s, %s, %s, %s, %s, %s)"
+
+        await self.commit_query(sql, (student_id, amount, date_payment, status_payment, desc_object))
+
+
+### DELETE ###
+
+    async def delete_manager(self, desc_object):
+
+        sql = "DELETE Users FROM Users INNER JOIN Managers ON Users.id_user = Managers.id_user WHERE Managers.desc_object = %s"
+
+        await self.commit_query(sql, (desc_object))
+
+    async def delete_student(self, desc_object):
+
+        sql = "DELETE Users FROM Users INNER JOIN Students ON Users.id_user = Students.id_user WHERE Students.desc_object = %s"
+
+        await self.commit_query(sql, (desc_object))
+
+    async def delete_trainer(self, desc_object):
         
+        sql = "DELETE Users FROM Users INNER JOIN Trainers ON Users.id_user = Trainers.id_user WHERE Trainers.desc_object = %s"
+
+        await self.commit_query(sql, (desc_object))
+
+    async def delete_car(self, desc_object):
+
+        sql = "DELETE FROM Cars WHERE desc_object = %s"
+
+        await self.commit_query(sql, (desc_object))
     
-    async def create_manager(self, surname, name, patronymic, login, password, role):
-        connection = await self.connect_to_db()
-        if not connection:
-            return None
-        
-        try:
-            async with connection.cursor() as cursor:
-                sql = "INSERT INTO Users (surname, name, patronymic, login, password, role) VALUES (%s, %s, %s, %s, %s, %s)"
-                await cursor.execute(sql, (surname, name, patronymic, login, password, role))
-                sql = "INSERT INTO Managers (id_user, desc_object) VALUES (LAST_INSERT_ID(), %s)"
-                await cursor.execute(sql, ("test"))
-                await connection.commit()
-            return True
-        except Exception as ex:
-            return None
-        
-    async def drop_manager(self, id_user):
-        connection = await self.connect_to_db()
-        if not connection:
-            return None
-        
-        try:
-            async with connection.cursor() as cursor:
-                sql = "DELETE FROM Users WHERE name = %s"
-                await cursor.execute(sql, (id_user,))
-                await connection.commit()
-            return True
-        except Exception as ex:
-            return None
