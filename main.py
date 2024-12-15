@@ -89,8 +89,13 @@ class LoginPage(ResizableWidget, Settings):
         self.buttons = buttons
         self.create_page()
 
-    def create_page(self):
+        # Таймер для повторных попыток
+        self.retry_timer = QTimer()
+        self.retry_timer.setInterval(5000)  # Интервал в 5 секунд
+        # Связываем таймер с методом входа
+        self.retry_timer.timeout.connect(self.vhod)
 
+    def create_page(self):
         self.menu_v_layout = QVBoxLayout()
         self.menu_h_layout = QHBoxLayout()
 
@@ -132,29 +137,44 @@ class LoginPage(ResizableWidget, Settings):
         self.vhod_layout.addItem(spacerItem1)
         self.setLayout(self.menu_v_layout)
 
-        self.login_input.returnPressed.connect(self.vhod)
-        self.passwd_input.returnPressed.connect(self.vhod)
-        self.button_vhod.clicked.connect(self.vhod)
+        self.login_input.returnPressed.connect(self.start_login_process)
+        self.passwd_input.returnPressed.connect(self.start_login_process)
+        self.button_vhod.clicked.connect(self.start_login_process)
 
         self.updateStyles()
+
+    def start_login_process(self):
+        self.retry_timer.start()
+        self.vhod()
+
+    def stop_login_process(self):
+        self.retry_timer.stop()
 
     @asyncSlot()
     async def vhod(self):
         self.button_vhod.setText("Подождите...")
         self.button_vhod.setEnabled(False)
-        self.login_input.returnPressed.disconnect()
-        self.passwd_input.returnPressed.disconnect()
+        try:
+            self.login_input.returnPressed.disconnect(self.vhod)
+        except TypeError:
+            pass 
+
+        try:
+            self.passwd_input.returnPressed.disconnect(self.vhod)
+        except TypeError:
+            pass
 
         self.login = self.login_input.text()
         self.passwd = self.passwd_input.text()
 
         global user
-        user = await self.check_passwd()
-        if user['role'] in ['Admin',"Manager"]:
+        user = await self.check_passwd()  # Проверка учетных данных
+
+        if user and user['role'] in ['Admin', "Manager"]:
+            self.retry_timer.stop()  # Останавливаем таймер при успехе
             main_widget = MainPage(self.stack, self.buttons)
             self.stack.addWidget(main_widget)
             self.stack.setCurrentWidget(main_widget)
-
         else:
             self.show_error_message("Ошибка", "Неверный логин или пароль")
             self.button_vhod.setText("Войти")
@@ -318,7 +338,6 @@ class MainPage(QWidget, Settings):
         self.label_information1.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.label_information2.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-
     @asyncSlot()
     async def update_info_admin(self):
         current_items = []
@@ -408,7 +427,7 @@ class MainPage(QWidget, Settings):
         await self.delete_manager(manager)
 
 
-class CadTeachPayCarPage(QWidget,Settings):
+class CadTeachPayCarPage(QWidget, Settings):
     def __init__(self, stack, buttons):
         super().__init__()
         self.stack = stack
@@ -483,8 +502,10 @@ class CadTeachPayCarPage(QWidget,Settings):
                          for i in range(self.list_widget.count())]
 
         manager_names = [item["desc_object"] for item in self.object]
-        items_to_add = [name for name in manager_names if name not in current_items]
-        items_to_remove = [name for name in current_items if name not in manager_names]
+        items_to_add = [
+            name for name in manager_names if name not in current_items]
+        items_to_remove = [
+            name for name in current_items if name not in manager_names]
 
         # Добавляем новые элементы
         for item in items_to_add:
@@ -497,14 +518,16 @@ class CadTeachPayCarPage(QWidget,Settings):
         # Удаляем старые элементы
         for i in range(self.list_widget.count() - 1, -1, -1):
             item = self.list_widget.item(i)
-            widget = self.list_widget.itemWidget(item).layout().itemAt(0).widget().text()
+            widget = self.list_widget.itemWidget(
+                item).layout().itemAt(0).widget().text()
             if widget in items_to_remove:
                 self.list_widget.takeItem(i)
 
     def create_list_widget_item(self, item_name):
         item_widget = QWidget()
         layout = QHBoxLayout()
-        spacer = QSpacerItem(40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+        spacer = QSpacerItem(
+            40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
 
         name_label = QLabel(item_name)
         layout.addWidget(name_label)
@@ -546,15 +569,14 @@ class CadTeachPayCarPage(QWidget,Settings):
             for button in self.buttons:
                 if button.isChecked():
                     current_button = button.text()
-            
+
             delete_func = self.delete_data.get(current_button)
-            
+
             await delete_func(item_name)
 
         except Exception as e:
             self.show_error_message(
                 "Ошибка добавления объекта", f"Возникла ошибка, объект не добавлен: {str(e)}")
-
 
 
 class LessonsPage(QWidget, Settings):
@@ -651,12 +673,14 @@ class LessonsPage(QWidget, Settings):
                 time_button = QPushButton(f"{hour}:00")
                 time_button.setObjectName("time_button")
 
-                date_str = date.toString("yyyy-MM-dd")  # Получаем строку с датой
+                # Получаем строку с датой
+                date_str = date.toString("yyyy-MM-dd")
 
                 # Проверка данных недели
                 for lesson in self.data_week:
                     # Получаем строку с датой урока и время урока
-                    lesson_date_str = lesson['date_lesson'].strftime('%Y-%m-%d')  # Преобразуем datetime в строку
+                    lesson_date_str = lesson['date_lesson'].strftime(
+                        '%Y-%m-%d')  # Преобразуем datetime в строку
                     lesson_time = lesson['time_lesson']
 
                     if lesson_date_str == date_str and lesson_time == f"{hour}:00":
@@ -666,11 +690,13 @@ class LessonsPage(QWidget, Settings):
                             time_button.setStyleSheet("background-color: red;")
                         # Если урок запланирован, меняем цвет на зеленый
                         elif status == "Свободно":
-                            time_button.setStyleSheet("background-color: green;")
+                            time_button.setStyleSheet(
+                                "background-color: green;")
                         elif status == "Проведено":
-                            time_button.setStyleSheet("background-color: blue;")
+                            time_button.setStyleSheet(
+                                "background-color: blue;")
                         break
-                
+
                 day_layout.addWidget(time_button)
                 time_button.clicked.connect(self.on_time_button_clicked)
 
@@ -678,12 +704,10 @@ class LessonsPage(QWidget, Settings):
             self.week_layout.addWidget(day_widget)
             date = date.addDays(1)  # Переходим к следующему дню
 
-
     @asyncSlot()
     async def update_info(self):
         self.update_week_label()
         self.display_week()
-
 
     @asyncSlot()
     async def update_week_label(self):
@@ -691,7 +715,7 @@ class LessonsPage(QWidget, Settings):
         start_text = self.locale.toString(self.start_date, "d MMMM yyyy")
         end_text = self.locale.toString(end_date, "d MMMM yyyy")
         self.week_label.setText(f"{start_text} - {end_text}")
-        
+
         start_text = self.start_date.toString("yyyy-MM-dd")
         end_text = end_date.toString("yyyy-MM-dd")
 
@@ -827,7 +851,6 @@ class ChangePage(QWidget, Settings):
                     self.scroll_layout.addWidget(self.combo_box_car)
                     self.combo_box_car.setStyleSheet(
                         "background-color: #81b7f7; padding: 10px;")
-                    
 
             else:
                 self.name_input = QLineEdit()
@@ -902,16 +925,16 @@ class ChangePage(QWidget, Settings):
                     self.show_error_message("Ошибка", "Заполните все поля")
                     return
                 arr_fields.append(text)
-        
+
         arr_fields.append(self.label_name_object_input.text())
 
         try:
             for button in self.buttons:
                 if button.isChecked():
                     current_button = button.text()
-            
+
             create_func = self.create_data.get(current_button)
-            
+
             await create_func(*arr_fields)
 
         except Exception as e:

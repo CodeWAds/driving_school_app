@@ -181,9 +181,9 @@ class Settings():
         return await self.execute_single_query(sql, (login,))
 
     async def check_passwd(self):
-        user = await self.find_user_by_login(self.login)
-        if user and bcrypt.checkpw(self.passwd.encode('utf-8'), user['password'].encode('utf-8')):
-            return user
+        user_data = await self.find_user_by_login(self.login)
+        if user_data and bcrypt.checkpw(self.passwd.encode('utf-8'), user_data['password'].encode('utf-8')):
+            return user_data
         return None
 
 
