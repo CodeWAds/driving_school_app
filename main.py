@@ -1,7 +1,7 @@
-from PyQt6.QtWidgets import QApplication, QLabel, QListWidget, QComboBox, QScrollArea, QGridLayout, QListWidgetItem, QLineEdit, QMessageBox, QMainWindow, QStackedWidget, QVBoxLayout, QWidget, QPushButton, QHBoxLayout, QSpacerItem, QSizePolicy
+from PyQt6.QtWidgets import QApplication, QLabel, QCheckBox, QListWidget, QComboBox, QScrollArea, QGridLayout, QListWidgetItem, QLineEdit, QMessageBox, QMainWindow, QStackedWidget, QVBoxLayout, QWidget, QPushButton, QHBoxLayout, QSpacerItem, QSizePolicy
 from PyQt6.QtGui import QIcon
 from PyQt6.QtCore import Qt, QSize, QDate, QLocale, QTimer
-
+from datetime import date, datetime, timedelta
 from settings import ResizableWidget, Settings
 import sys
 import asyncio
@@ -89,12 +89,6 @@ class LoginPage(ResizableWidget, Settings):
         self.buttons = buttons
         self.create_page()
 
-        # Таймер для повторных попыток
-        self.retry_timer = QTimer()
-        self.retry_timer.setInterval(5000)  # Интервал в 5 секунд
-        # Связываем таймер с методом входа
-        self.retry_timer.timeout.connect(self.vhod)
-
     def create_page(self):
         self.menu_v_layout = QVBoxLayout()
         self.menu_h_layout = QHBoxLayout()
@@ -144,6 +138,11 @@ class LoginPage(ResizableWidget, Settings):
         self.updateStyles()
 
     def start_login_process(self):
+        # Таймер для повторных попыток
+        self.retry_timer = QTimer()
+        self.retry_timer.setInterval(5000)  # Интервал в 5 секунд
+        # Связываем таймер с методом входа
+        self.retry_timer.timeout.connect(self.vhod)
         self.retry_timer.start()
         self.vhod()
 
@@ -152,12 +151,13 @@ class LoginPage(ResizableWidget, Settings):
 
     @asyncSlot()
     async def vhod(self):
+
         self.button_vhod.setText("Подождите...")
         self.button_vhod.setEnabled(False)
         try:
             self.login_input.returnPressed.disconnect(self.vhod)
         except TypeError:
-            pass 
+            pass
 
         try:
             self.passwd_input.returnPressed.disconnect(self.vhod)
@@ -203,7 +203,7 @@ class MainPage(QWidget, Settings):
 
         self.timer = QTimer()
         self.timer.timeout.connect(self.update_info_admin)
-        self.timer.start(10000)
+        self.timer.start(5000)
 
         self.menu_v_layout = QVBoxLayout()
         self.menu_h_layout = QHBoxLayout()
@@ -444,6 +444,11 @@ class CadTeachPayCarPage(QWidget, Settings):
         }
 
     def create_page(self):
+
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.update_info)
+        self.timer.start(3000)
+
         self.menu_v_layout = QVBoxLayout()
         self.menu_h_layout = QHBoxLayout()
 
@@ -469,16 +474,18 @@ class CadTeachPayCarPage(QWidget, Settings):
         self.update_info()
 
     def add_object(self):
+        date = None
+        time = None
         for button in self.buttons:
             if button.isChecked():
                 self.type_object = button.text()
-        main_widget = ChangePage(self.stack, self.type_object, self.buttons)
+        main_widget = ChangePage(
+            self.stack, self.type_object, self.buttons, date, time)
         self.stack.addWidget(main_widget)
         self.stack.setCurrentWidget(main_widget)
 
     @asyncSlot()
     async def update_info(self):
-        # Определяем текущую страницу
         current_page = None
         for button in self.buttons:
             if button.isChecked():
@@ -488,7 +495,6 @@ class CadTeachPayCarPage(QWidget, Settings):
         if not current_page or current_page not in self.data_loaders:
             return
 
-        # Загружаем данные для текущей страницы
         loader_function = self.data_loaders[current_page]
         self.object = await loader_function()
 
@@ -562,8 +568,7 @@ class CadTeachPayCarPage(QWidget, Settings):
             "Курсанты": self.delete_student,
             "Инструкторы": self.delete_trainer,
             "Автомобили": self.delete_car,
-            # "Занятия": self.delete_lesson,
-            # "Платежи": self.delete_payment,
+            "Платежи": self.delete_payment
         }
         try:
             for button in self.buttons:
@@ -576,7 +581,7 @@ class CadTeachPayCarPage(QWidget, Settings):
 
         except Exception as e:
             self.show_error_message(
-                "Ошибка добавления объекта", f"Возникла ошибка, объект не добавлен: {str(e)}")
+                "Ошибка удаления объекта", f"Возникла ошибка, объект не удален: {str(e)}")
 
 
 class LessonsPage(QWidget, Settings):
@@ -595,28 +600,27 @@ class LessonsPage(QWidget, Settings):
         self.stack = stack
         self.buttons = buttons
         self.data_week = []
+        self.selected_instructor = None  # Выбранный инструктор
         self.create_page()
 
     def create_page(self):
-
         self.timer = QTimer()
-        self.timer.timeout.connect(self.update_info)
+        self.timer.timeout.connect(self.update_calendar)
+        self.timer.timeout.connect(self.load_instructors)
         self.timer.start(3000)
-
-        spacerItem = QSpacerItem(
-            40, 20, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding)
-        spacerItem1 = QSpacerItem(
-            40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
 
         spacerItem2 = QSpacerItem(
             20, 40, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
 
         self.main_h_layout = QHBoxLayout()
-
         self.main_layout = QVBoxLayout()
 
+        # Список инструкторов
         self.teach_list = QListWidget()
+        self.teach_list.itemClicked.connect(self.on_instructor_selected)
+        self.load_instructors()
 
+        # Навигация по неделям
         self.navigation_layout = QHBoxLayout()
         self.prev_button = QPushButton("Предыдущая неделя")
         self.prev_button.clicked.connect(self.show_previous_week)
@@ -631,6 +635,7 @@ class LessonsPage(QWidget, Settings):
             self.week_label, alignment=Qt.AlignmentFlag.AlignCenter)
         self.navigation_layout.addWidget(self.next_button)
 
+        # Сетка календаря
         self.week_layout = QVBoxLayout()
         self.week_layout.setSpacing(10)
 
@@ -644,70 +649,17 @@ class LessonsPage(QWidget, Settings):
         self.display_week()
         self.setLayout(self.main_h_layout)
 
-    def display_week(self):
-        # Очистка предыдущего содержимого
-        for i in reversed(range(self.week_layout.count())):
-            widget = self.week_layout.itemAt(i).widget()
-            if widget:
-                widget.setParent(None)
-
-        # Генерация дней недели строками
-        date = self.start_date  # Локальная переменная, чтобы не менять глобальное состояние
-        cell_style = "QWidget { border: 1px solid gray; }"
-
-        for i in range(7):  # 7 дней в неделе
-            day_widget = QWidget()
-            day_layout = QHBoxLayout(day_widget)
-            day_layout.setContentsMargins(2, 2, 2, 2)
-
-            # День недели и дата
-            short_day_name = self.locale.dayName(
-                date.dayOfWeek(), QLocale.FormatType.ShortFormat)
-            day_label = QLabel(f"{short_day_name}, {date.day()}")
-            day_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            day_label.setStyleSheet("border: none;")
-            day_layout.addWidget(day_label)
-
-            # Кнопки для временных интервалов
-            for hour in range(6, 22, 3):  # Пример интервалов с 6:00 до 21:00 (каждые 3 часа)
-                time_button = QPushButton(f"{hour}:00")
-                time_button.setObjectName("time_button")
-
-                # Получаем строку с датой
-                date_str = date.toString("yyyy-MM-dd")
-
-                # Проверка данных недели
-                for lesson in self.data_week:
-                    # Получаем строку с датой урока и время урока
-                    lesson_date_str = lesson['date_lesson'].strftime(
-                        '%Y-%m-%d')  # Преобразуем datetime в строку
-                    lesson_time = lesson['time_lesson']
-
-                    if lesson_date_str == date_str and lesson_time == f"{hour}:00":
-                        status = lesson['status_lesson']
-                        # Если урок проведен, меняем цвет на красный
-                        if status == "Назначено":
-                            time_button.setStyleSheet("background-color: red;")
-                        # Если урок запланирован, меняем цвет на зеленый
-                        elif status == "Свободно":
-                            time_button.setStyleSheet(
-                                "background-color: green;")
-                        elif status == "Проведено":
-                            time_button.setStyleSheet(
-                                "background-color: blue;")
-                        break
-
-                day_layout.addWidget(time_button)
-                time_button.clicked.connect(self.on_time_button_clicked)
-
-            day_widget.setStyleSheet(cell_style)
-            self.week_layout.addWidget(day_widget)
-            date = date.addDays(1)  # Переходим к следующему дню
-
     @asyncSlot()
-    async def update_info(self):
-        self.update_week_label()
-        self.display_week()
+    async def load_instructors(self):
+        instructors = await self.get_trainers()
+        self.teach_list.clear()
+        for instructor in instructors:
+            item = QListWidgetItem(instructor['desc_object'])
+            self.teach_list.addItem(item)
+
+    def on_instructor_selected(self, item):
+        self.selected_instructor = item.text()
+        self.update_calendar()
 
     @asyncSlot()
     async def update_week_label(self):
@@ -718,8 +670,66 @@ class LessonsPage(QWidget, Settings):
 
         start_text = self.start_date.toString("yyyy-MM-dd")
         end_text = end_date.toString("yyyy-MM-dd")
+        if self.selected_instructor:
+            self.data_week = await self.get_lessons_by_trainer(
+                str(start_text), str(end_text), self.selected_instructor)
+        else:
+            self.data_week = []
 
-        self.data_week = await self.get_data_week(str(start_text), str(end_text))
+    def display_week(self):
+        for i in reversed(range(self.week_layout.count())):
+            widget = self.week_layout.itemAt(i).widget()
+            if widget:
+                widget.setParent(None)
+
+        date = self.start_date
+        cell_style = "QWidget { border: 1px solid gray; }"
+
+        for i in range(7):
+            day_widget = QWidget()
+            day_layout = QHBoxLayout(day_widget)
+            day_layout.setContentsMargins(2, 2, 2, 2)
+
+            short_day_name = self.locale.dayName(
+                date.dayOfWeek(), QLocale.FormatType.ShortFormat)
+            day_label = QLabel(f"{short_day_name}, {date.day()}")
+            day_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            day_label.setStyleSheet("border: none;")
+            day_layout.addWidget(day_label)
+
+            for hour in range(6, 22, 3):
+                time_button = QPushButton(f"{hour}:00")
+                time_button.setObjectName("time_button")
+
+                date_str = date.toString("yyyy-MM-dd")
+                today_date = QDate.currentDate()
+
+                if date < today_date:
+                    time_button.setStyleSheet("background-color: blue;")
+                else:
+                    time_button.setStyleSheet("background-color: green;")
+
+                for lesson in self.data_week:
+                    lesson_date_str = lesson['date_lesson'].strftime(
+                        '%Y-%m-%d')
+                    lesson_time = lesson['time_lesson']
+
+                    if lesson_date_str == date_str and lesson_time == f"{hour}:00":
+                        status = lesson['status_lesson']
+                        if status == "Запланировано":
+                            time_button.setStyleSheet("background-color: red;")
+                        elif status == "Свободно":
+                            time_button.setStyleSheet(
+                                "background-color: green;")
+
+                        break
+
+                day_layout.addWidget(time_button)
+                time_button.clicked.connect(self.on_time_button_clicked)
+
+            day_widget.setStyleSheet(cell_style)
+            self.week_layout.addWidget(day_widget)
+            date = date.addDays(1)
 
     def show_previous_week(self):
         self.start_date = self.start_date.addDays(-7)
@@ -734,14 +744,33 @@ class LessonsPage(QWidget, Settings):
         self.display_week()
 
     def on_time_button_clicked(self):
-        self.time = None
+        # Получаем кнопку, которая вызвала сигнал
+        button = self.sender()
+        if button is None:
+            return
+
+        # Извлекаем дату и время из кнопки
+        button_time = button.text()  # Время в формате "HH:00"
+        button_date = button.parentWidget().findChild(
+            QLabel).text()  # Дата из QLabel в формате "день, DD"
+
+        # Конвертируем дату из текста
+        short_day_name, day = button_date.split(', ')
+        day = int(day)
+        current_month = self.start_date.month()
+        current_year = self.start_date.year()
+        button_date = QDate(current_year, current_month, day)
+
+        self.date = button_date.toString("yyyy-MM-dd")
+        self.time = button_time
+
         main_widget = ChangePage(
-            self.stack, "Занятия", self.buttons, self.time)
+            self.stack, "Занятия", self.buttons, self.date, self.time, self.selected_instructor)
         self.stack.addWidget(main_widget)
         self.stack.setCurrentWidget(main_widget)
 
 
-class ReportsPage(QWidget):
+class ReportsPage(QWidget, Settings):
     def __init__(self, stack, buttons):
         super().__init__()
         self.stack = stack
@@ -762,6 +791,7 @@ class ReportsPage(QWidget):
         self.coefficient = QLineEdit()
 
         self.get_report_button = QPushButton("Рассчитать")
+        self.get_report_button.clicked.connect(self.get_report)
 
         self.menu_v_layout.addWidget(self.hour_st_label)
         self.menu_v_layout.addWidget(self.hour_st)
@@ -774,14 +804,74 @@ class ReportsPage(QWidget):
 
         self.setLayout(self.menu_h_layout)
 
+    @asyncSlot()
+    async def get_report(self):
+        self.report.clear()
+
+        now = datetime.now()
+
+        start_of_month = datetime(now.year, now.month, 1)
+
+        if now.month == 12:
+            end_of_month = datetime(now.year + 1, 1, 1) - timedelta(days=1)
+        else:
+            end_of_month = datetime(
+                now.year, now.month + 1, 1) - timedelta(days=1)
+
+        start_text = start_of_month.strftime("%Y-%m-%d")
+        end_text = end_of_month.strftime("%Y-%m-%d")
+
+        report = await self.get_count_lessons(start_text, end_text)
+
+        for item in report:
+            trainer_id = item['desc_object']
+            lesson_count_main = item['count_main']
+            lesson_count_add = item['count_add']
+            summ = lesson_count_main * float(self.hour_st.text()) + lesson_count_add * float(self.hour_st.text()) * float(self.coefficient.text())
+
+            item_widget = self.create_list_widget_item_with_data(
+                trainer_id, summ)
+
+            list_item = QListWidgetItem(self.report)
+            list_item.setSizeHint(item_widget.sizeHint())
+            self.report.addItem(list_item)
+            self.report.setItemWidget(list_item, item_widget)
+
+    def create_list_widget_item_with_data(self, trainer_id, summ):
+        item_widget = QWidget()
+        layout = QHBoxLayout()
+        spacer = QSpacerItem(
+            40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+
+        id_label = QLabel(f"Инструктор: {trainer_id}")
+        count_label = QLabel(f"Сумма: {summ}")
+        layout.addWidget(id_label)
+        layout.addWidget(count_label)
+
+        item_widget.setLayout(layout)
+        return item_widget
+
 
 class ChangePage(QWidget, Settings):
-    def __init__(self, stack, type_change, buttons, time=None):
+    def __init__(self, stack, type_change, buttons, date, time, trainer):
         super().__init__()
+        self.date = date
         self.time = time
+        self.trainer = trainer
         self.stack = stack
         self.type_change = type_change
         self.buttons = buttons
+
+        self.page_mapping = {
+            "Главная": MainPage,
+            "Курсанты": CadTeachPayCarPage,
+            "Инструкторы": CadTeachPayCarPage,
+            "Автомобили": CadTeachPayCarPage,
+            "Занятия": LessonsPage,
+            "Платежи": CadTeachPayCarPage,
+            "Отчет": ReportsPage
+        }
+
         self.create_page()
 
     @asyncSlot()
@@ -820,27 +910,80 @@ class ChangePage(QWidget, Settings):
 
         for elem in self.types_change[self.type_change]:
             self.name_input_label = QLabel(elem)
-            if elem in ['Инструктор', 'Статус', 'Машина']:
-                if elem == 'Статус' and self.type_change == 'Курсанты':
+            if elem in ['Инструктор', 'Курсант', 'Статус', 'Машина', 'Дата', 'Время', 'Дополнительное занятие']:
+                if elem == 'Дополнительное занятие' and self.type_change == 'Занятия':
+                    self.name_input = QCheckBox()
+                    self.scroll_layout.addWidget(self.name_input_label)
+                    self.scroll_layout.addWidget(self.name_input)
+                    self.name_input.setStyleSheet(
+                        "background-color: #81b7f7; padding: 10px;")
+                if (elem == 'Дата' or elem == 'Время') and self.type_change == 'Занятия':
+                    self.name_input = QLineEdit()
+                    if elem == 'Дата':
+                        self.name_input.setText(self.date)
+                    if elem == 'Время':
+                        self.name_input.setText(self.time)
+                    self.name_input.setEnabled(False)
+                    self.scroll_layout.addWidget(self.name_input_label)
+                    self.scroll_layout.addWidget(self.name_input)
+                    self.name_input.setStyleSheet(
+                        "background-color: #81b7f7; padding: 10px;")
+                if elem == 'Дата' and self.type_change == 'Платежи':
+                    self.current_date = date.today().strftime("%Y-%m-%d")
+                    self.name_input = QLineEdit()
+                    self.name_input.setText(self.current_date)
+                    self.name_input.setEnabled(False)
+                    self.scroll_layout.addWidget(self.name_input_label)
+                    self.scroll_layout.addWidget(self.name_input)
+                    self.name_input.setStyleSheet(
+                        "background-color: #81b7f7; padding: 10px;")
+
+                if elem == 'Статус' and (self.type_change == 'Курсанты' or self.type_change == 'Занятия' or self.type_change == 'Платежи'):
                     self.combo_box_status = QComboBox()
-                    self.statuses = ['Заявка', 'Обучается',
-                                     'Закончил обучение', 'Отказ']
-                    for status in self.statuses:
-                        self.combo_box_status.addItem(status)
+                    self.statuses_stud = ['Заявка', 'Обучается',
+                                          'Закончил обучение', 'Отказ']
+                    self.future_statuses_lesson = [
+                        'Свободно', 'Запланировано']
+                    self.past_statuses_lesson = [
+                        'Проведено', 'Отменено']
+                    self.payment_statuses = ['Оплачено', 'Не оплачено']
+                    if self.type_change == 'Курсанты':
+                        for status in self.statuses_stud:
+                            self.combo_box_status.addItem(status)
+                    if self.type_change == 'Занятия':
+                        if self.date >= date.today().strftime("%Y-%m-%d"):
+                            for status in self.future_statuses_lesson:
+                                self.combo_box_status.addItem(status)
+                        if self.date < date.today().strftime("%Y-%m-%d"):
+                            for status in self.past_statuses_lesson:
+                                self.combo_box_status.addItem(status)
+                    if self.type_change == 'Платежи':
+                        for status in self.payment_statuses:
+                            self.combo_box_status.addItem(status)
                     self.scroll_layout.addWidget(self.name_input_label)
                     self.scroll_layout.addWidget(self.combo_box_status)
                     self.combo_box_status.setStyleSheet(
                         "background-color: #81b7f7; padding: 10px;")
 
-                if elem == 'Инструктор' and self.type_change == 'Курсанты':
-                    self.combo_box_trainer = QComboBox()
-                    self.trainers = await self.get_trainers()
-                    for trainer in self.trainers:
-                        self.combo_box_trainer.addItem(str(trainer['id_user']))
-                    self.scroll_layout.addWidget(self.name_input_label)
-                    self.scroll_layout.addWidget(self.combo_box_trainer)
-                    self.combo_box_trainer.setStyleSheet(
-                        "background-color: #81b7f7; padding: 10px;")
+                if elem == 'Инструктор' and (self.type_change == 'Курсанты' or self.type_change == 'Занятия'):
+                    if self.type_change == 'Занятия':
+                        self.name_input = QLineEdit()
+                        self.name_input.setText("25")
+                        self.name_input.setEnabled(False)
+                        self.scroll_layout.addWidget(self.name_input_label)
+                        self.scroll_layout.addWidget(self.name_input)
+                        self.name_input.setStyleSheet(
+                            "background-color: #81b7f7; padding: 10px;")
+                    else:
+                        self.combo_box_trainer = QComboBox()
+                        self.trainers = await self.get_trainers()
+                        for trainer in self.trainers:
+                            self.combo_box_trainer.addItem(
+                                str(trainer['id_user']))
+                        self.scroll_layout.addWidget(self.name_input_label)
+                        self.scroll_layout.addWidget(self.combo_box_trainer)
+                        self.combo_box_trainer.setStyleSheet(
+                            "background-color: #81b7f7; padding: 10px;")
 
                 if elem == 'Машина' and self.type_change == 'Инструкторы':
                     self.combo_box_car = QComboBox()
@@ -852,13 +995,24 @@ class ChangePage(QWidget, Settings):
                     self.combo_box_car.setStyleSheet(
                         "background-color: #81b7f7; padding: 10px;")
 
+                if elem == 'Курсант' and (self.type_change == 'Занятия' or self.type_change == 'Платежи'):
+                    self.combo_box_student = QComboBox()
+                    self.students = await self.get_students()
+                    for student in self.students:
+                        self.combo_box_student.addItem(str(student['id_user']))
+                    self.scroll_layout.addWidget(self.name_input_label)
+                    self.scroll_layout.addWidget(self.combo_box_student)
+                    self.combo_box_student.setStyleSheet(
+                        "background-color: #81b7f7; padding: 10px;"
+                    )
+
             else:
                 self.name_input = QLineEdit()
                 self.name_input.setPlaceholderText(elem)
 
                 self.scroll_layout.addWidget(self.name_input_label)
                 self.scroll_layout.addWidget(self.name_input)
-            self.name_input.setStyleSheet("background-color: #81b7f7")
+                self.name_input.setStyleSheet("background-color: #81b7f7")
 
         self.scroll_content.setLayout(self.scroll_layout)
         self.scroll_content.setStyleSheet("background-color: #F0F4F8;")
@@ -880,21 +1034,12 @@ class ChangePage(QWidget, Settings):
         self.save_button.clicked.connect(self.save_changes)
 
     def back_to_manager_page(self):
-        page_mapping = {
-            "Главная": MainPage,
-            "Курсанты": CadTeachPayCarPage,
-            "Инструкторы": CadTeachPayCarPage,
-            "Автомобили": CadTeachPayCarPage,
-            "Занятия": LessonsPage,
-            "Платежи": CadTeachPayCarPage,
-            "Отчет": ReportsPage
-        }
 
         for button in self.buttons:
             if button.isChecked():
                 current_button = button.text()
 
-        page_class = page_mapping.get(current_button)
+        page_class = self.page_mapping.get(current_button)
         if page_class:
             page_instance = page_class(self.stack, self.buttons)
             self.stack.addWidget(page_instance)
@@ -925,7 +1070,10 @@ class ChangePage(QWidget, Settings):
                     self.show_error_message("Ошибка", "Заполните все поля")
                     return
                 arr_fields.append(text)
-
+            if isinstance(child, QCheckBox):
+                text = child.isChecked()
+                arr_fields.append(int(text))
+    
         arr_fields.append(self.label_name_object_input.text())
 
         try:
@@ -941,9 +1089,15 @@ class ChangePage(QWidget, Settings):
             self.show_error_message(
                 "Ошибка добавления объекта", f"Возникла ошибка, объект не добавлен: {str(e)}")
 
-        main_widget = MainPage(self.stack, self.buttons)
-        self.stack.addWidget(main_widget)
-        self.stack.setCurrentWidget(main_widget)
+        for button in self.buttons:
+            if button.isChecked():
+                current_button = button.text()
+
+        page_class = self.page_mapping.get(current_button)
+        if page_class:
+            page_instance = page_class(self.stack, self.buttons)
+            self.stack.addWidget(page_instance)
+            self.stack.setCurrentWidget(page_instance)
 
 
 if __name__ == '__main__':

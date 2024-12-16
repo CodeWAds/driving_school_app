@@ -74,6 +74,10 @@ class ResizableWidget(QWidget):
             QPushButton#time_button {{
                 font-size: {font_size}px;
             }}
+
+            QListWidget {{
+                font-size: {font_size}px;
+            }}
         """)
 
         for button in self.buttons:
@@ -116,8 +120,9 @@ class Settings():
                              'Пароль', 'Номер телефона', 'Инструктор', 'Статус']
         self.trainer_data = ['Фамилия', 'Имя',
                              'Отчество', 'Логин', 'Пароль', 'Машина']
-        self.payment_data = ['Сумма', 'Дата', 'Статус']
-        self.lesson_data = ['Дата', 'Статус']
+        self.payment_data = ['Курсант', 'Сумма', 'Дата', 'Статус']
+        self.lesson_data = ['Курсант', 'Инструктор', 'Дата',
+                            'Время', 'Статус', 'Дополнительное занятие']
         self.car_data = ['Марка', 'Номер']
 
         self.types_change = {
@@ -189,6 +194,7 @@ class Settings():
 
 ### GET ###
 
+
     async def get_managers(self):
         sql = """
             SELECT Managers.desc_object FROM Users
@@ -239,10 +245,32 @@ class Settings():
 
     async def get_count_trainers(self):
 
-        sql = "SELECT COUNT(*) as count_trainer FROM Users WHERE role = 'Trainer'"    
+        sql = "SELECT COUNT(*) as count_trainer FROM Users WHERE role = 'Trainer'"
 
         return await self.execute_query(sql)
 
+    async def get_lessons_by_trainer(self, start_text, end_text, trainer_desc):
+
+        sql = """SELECT * FROM Lessons
+                WHERE date_lesson BETWEEN %s AND %s
+                AND trainer_id IN (SELECT id_user FROM Trainers WHERE desc_object = %s)"""
+
+        return await self.execute_query(sql, (start_text, end_text, trainer_desc))
+
+    async def get_count_lessons(self, start_text, end_text):
+
+        sql = """SELECT 
+            Trainers.desc_object,
+            COUNT(CASE WHEN Lessons.status_lesson = 'Проведено' AND Lessons.additional = 0 THEN 1 END) AS count_main,
+            COUNT(CASE WHEN Lessons.status_lesson = 'Проведено' AND Lessons.additional = 1 THEN 1 END) AS count_add
+            
+            FROM Lessons
+            INNER JOIN Trainers ON Trainers.id_user = Lessons.trainer_id
+            WHERE Lessons.date_lesson BETWEEN %s AND %s
+            GROUP BY Trainers.desc_object;
+            """
+
+        return await self.execute_query(sql, (start_text, end_text))
 
 ### CREATE ###
 
@@ -253,7 +281,7 @@ class Settings():
         sql_users = """INSERT INTO Users (surname, name, patronymic, login, password, role) VALUES (%s, %s, %s, %s, %s, 'Manager');
         INSERT INTO Managers (id_user, desc_object) VALUES (LAST_INSERT_ID(), %s)"""
 
-        await self.commit_query(sql_users, (surname, name, patronymic, login, password,desc_object))
+        await self.commit_query(sql_users, (surname, name, patronymic, login, password, desc_object))
 
     async def create_trainer(self, surname, name, patronymic, login, password, car, desc_object):
 
@@ -285,17 +313,21 @@ class Settings():
 
         await self.commit_query(sql_users, (surname, name, patronymic, login, password, num_phone, trainer, status, desc_object))
 
-    async def create_lesson(self, date, status, desc_object):
-        pass
+    async def create_lesson(self, student_id, trainer_id, date, time, status, additional, desc_object):
+
+        sql = "INSERT INTO Lessons (student_id, trainer_id, date_lesson, time_lesson, status_lesson, additional, desc_object) VALUES (%s, %s, %s, %s, %s, %s, %s)"
+
+        await self.commit_query(sql, (student_id, trainer_id, date, time, status, additional, desc_object))
 
     async def create_payment(self, student_id, amount, date_payment, status_payment, desc_object):
 
-        sql = "INSERT INTO Payments (student_id, amount, date_payment, status_payment, desc_object) VALUES (%s, %s, %s, %s, %s, %s)"
+        sql = "INSERT INTO Payments (student_id, amount, date_payment, status_payment, desc_object) VALUES (%s, %s, %s, %s, %s)"
 
         await self.commit_query(sql, (student_id, amount, date_payment, status_payment, desc_object))
 
 
 ### DELETE ###
+
 
     async def delete_manager(self, desc_object):
 
@@ -310,7 +342,7 @@ class Settings():
         await self.commit_query(sql, (desc_object))
 
     async def delete_trainer(self, desc_object):
-        
+
         sql = "DELETE Users FROM Users INNER JOIN Trainers ON Users.id_user = Trainers.id_user WHERE Trainers.desc_object = %s"
 
         await self.commit_query(sql, (desc_object))
@@ -320,4 +352,9 @@ class Settings():
         sql = "DELETE FROM Cars WHERE desc_object = %s"
 
         await self.commit_query(sql, (desc_object))
-    
+
+    async def delete_payment(self, desc_object):
+
+        sql = "DELETE FROM Payments WHERE desc_object = %s"
+
+        await self.commit_query(sql, (desc_object))
