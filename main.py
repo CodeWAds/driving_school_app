@@ -177,6 +177,7 @@ class LoginPage(ResizableWidget, Settings):
             self.stack.setCurrentWidget(main_widget)
         else:
             self.show_error_message("Ошибка", "Неверный логин или пароль")
+            self.retry_timer.stop()
             self.button_vhod.setText("Войти")
             self.login_input.clear()
             self.passwd_input.clear()
@@ -377,18 +378,15 @@ class MainPage(QWidget, Settings):
             spacer = QSpacerItem(
                 40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
 
-            # Добавляем текст
             name_label = QLabel(f"{item}")
             layout.addWidget(name_label)
 
-            # Создаем кнопку редактирования
             edit_button = QPushButton()
             edit_button.setIcon(QIcon("./src/img/pencil.svg"))
             edit_button.setIconSize(QSize(24, 24))
             edit_button.setCursor(Qt.CursorShape.PointingHandCursor)
             edit_button.clicked.connect(lambda _, m=item: self.edit_manager(m))
 
-            # Создаем кнопку удаления
             delete_button = QPushButton()
             delete_button.setIcon(QIcon("./src/img/trash.svg"))
             delete_button.setIconSize(QSize(24, 24))
@@ -403,7 +401,6 @@ class MainPage(QWidget, Settings):
 
             item_widget.setLayout(layout)
 
-            # Добавляем виджет в QListWidget
             item = QListWidgetItem()
             item.setSizeHint(item_widget.sizeHint())
             self.list_widget.addItem(item)
@@ -411,7 +408,7 @@ class MainPage(QWidget, Settings):
 
         # Проходим с конца, чтобы индексы не смещались
         for i in range(self.list_widget.count() - 1, -1, -1):
-            item = self.list_widget.item(i)  # Получаем QListWidgetItem
+            item = self.list_widget.item(i)
             widget = self.list_widget.itemWidget(
                 item).layout().itemAt(0).widget().text()
 
@@ -419,8 +416,16 @@ class MainPage(QWidget, Settings):
                 self.list_widget.takeItem(i)
 
     def edit_manager(self, manager):
-        print(
-            f"Edit manager: {manager}")
+        date = None
+        time = None
+        trainer = None
+        for button in self.buttons:
+            if button.isChecked():
+                self.type_object = button.text()
+        main_widget = ChangePage(
+            self.stack, 'Менеджеры', self.buttons, date, time, trainer, manager)
+        self.stack.addWidget(main_widget)
+        self.stack.setCurrentWidget(main_widget)
 
     @asyncSlot()
     async def drop_manager(self, manager):
@@ -434,7 +439,6 @@ class CadTeachPayCarPage(QWidget, Settings):
         self.buttons = buttons
         self.create_page()
 
-        # Словарь функций для загрузки данных
         self.data_loaders = {
             "Курсанты": self.get_students,
             "Инструкторы": self.get_trainers,
@@ -498,11 +502,9 @@ class CadTeachPayCarPage(QWidget, Settings):
         loader_function = self.data_loaders[current_page]
         self.object = await loader_function()
 
-        # Обновляем интерфейс
         self.populate_list_widget()
 
     def populate_list_widget(self):
-        # Получаем имена объектов
         current_items = [self.list_widget.itemWidget(self.list_widget.item(i))
                          .layout().itemAt(0).widget().text()
                          for i in range(self.list_widget.count())]
@@ -559,8 +561,17 @@ class CadTeachPayCarPage(QWidget, Settings):
         return item_widget
 
     @asyncSlot()
-    async def edit_manager(self, manager):
-        print(f"Edit manager: {manager}")
+    async def edit_object(self, item_name):
+        date = None
+        time = None
+        trainer = None
+        for button in self.buttons:
+            if button.isChecked():
+                self.type_object = button.text()
+        main_widget = ChangePage(
+            self.stack, self.type_object, self.buttons, date, time, trainer, item_name)
+        self.stack.addWidget(main_widget)
+        self.stack.setCurrentWidget(main_widget)
 
     @asyncSlot()
     async def delete_object(self, item_name):
@@ -744,7 +755,6 @@ class LessonsPage(QWidget, Settings):
         self.display_week()
 
     def on_time_button_clicked(self):
-        # Получаем кнопку, которая вызвала сигнал
         button = self.sender()
         if button is None:
             return
@@ -806,6 +816,10 @@ class ReportsPage(QWidget, Settings):
 
     @asyncSlot()
     async def get_report(self):
+        if self.hour_st.text() == "" or self.coefficient.text() == "":
+            self.show_error_message("Ошибка", "Заполните все поля")
+            return
+
         self.report.clear()
 
         now = datetime.now()
@@ -827,7 +841,8 @@ class ReportsPage(QWidget, Settings):
             trainer_id = item['desc_object']
             lesson_count_main = item['count_main']
             lesson_count_add = item['count_add']
-            summ = lesson_count_main * float(self.hour_st.text()) + lesson_count_add * float(self.hour_st.text()) * float(self.coefficient.text())
+            summ = lesson_count_main * float(self.hour_st.text()) + lesson_count_add * float(
+                self.hour_st.text()) * float(self.coefficient.text())
 
             item_widget = self.create_list_widget_item_with_data(
                 trainer_id, summ)
@@ -853,14 +868,31 @@ class ReportsPage(QWidget, Settings):
 
 
 class ChangePage(QWidget, Settings):
-    def __init__(self, stack, type_change, buttons, date, time, trainer):
+    def __init__(self, stack, type_change, buttons, date, time, trainer, item=None):
         super().__init__()
         self.date = date
         self.time = time
+        self.item = item
         self.trainer = trainer
         self.stack = stack
         self.type_change = type_change
         self.buttons = buttons
+
+        self.arr_data = {"Курсанты":['surname', 'name', 'patronymic', 'login', 'number_phone'],
+        "Менеджеры":['surname','name','patronymic','login'],
+        "Инструкторы":['surname', 'name', 'patronymic', 'login'],
+        "Автомобили":['brand','number'],
+        "Занятия":[],
+        "Платежи":['amount', 'date_payment']}
+
+        self.data_loaders = {
+            "Менеджеры": self.get_manager_by_desc,
+            "Курсанты": self.get_student_by_desc,
+            "Инструкторы": self.get_trainer_by_desc,
+            "Автомобили": self.get_car_by_desc,
+            "Занятия": self.get_lesson_by_trainer_date_time,
+            "Платежи": self.get_payment_by_desc,
+        }
 
         self.page_mapping = {
             "Главная": MainPage,
@@ -876,6 +908,16 @@ class ChangePage(QWidget, Settings):
 
     @asyncSlot()
     async def create_page(self):
+        self.trainer = 25
+        if self.item:
+            load_fun = self.data_loaders[self.type_change]
+            self.item = await load_fun(self.item)
+            self.item = self.item[0]
+
+        elif self.type_change == "Занятия":
+            load_fun = self.data_loaders[self.type_change]
+            self.item = await load_fun(self.trainer, self.date, self.time)
+            self.item = self.item[0]
 
         self.menu_h_layout = QHBoxLayout()
         self.menu_v_layout = QVBoxLayout()
@@ -904,10 +946,13 @@ class ChangePage(QWidget, Settings):
 
         self.label_name_object = QLabel("Название объекта")
         self.label_name_object_input = QLineEdit()
+        if self.item:
+            self.label_name_object_input.setText(self.item['desc_object'])
         self.label_name_object_input.setPlaceholderText("Название объекта")
         self.menu_v_layout.addWidget(self.label_name_object)
         self.menu_v_layout.addWidget(self.label_name_object_input)
 
+        i = 0
         for elem in self.types_change[self.type_change]:
             self.name_input_label = QLabel(elem)
             if elem in ['Инструктор', 'Курсант', 'Статус', 'Машина', 'Дата', 'Время', 'Дополнительное занятие']:
@@ -915,6 +960,8 @@ class ChangePage(QWidget, Settings):
                     self.name_input = QCheckBox()
                     self.scroll_layout.addWidget(self.name_input_label)
                     self.scroll_layout.addWidget(self.name_input)
+                    if self.item:
+                        self.name_input.setChecked(self.item['additional'])
                     self.name_input.setStyleSheet(
                         "background-color: #81b7f7; padding: 10px;")
                 if (elem == 'Дата' or elem == 'Время') and self.type_change == 'Занятия':
@@ -950,6 +997,15 @@ class ChangePage(QWidget, Settings):
                     if self.type_change == 'Курсанты':
                         for status in self.statuses_stud:
                             self.combo_box_status.addItem(status)
+                        if self.item:
+                            if self.item['status_student'] == 'Заявка':
+                                self.combo_box_status.setCurrentIndex(0)
+                            if self.item['status_student'] == 'Обучается':
+                                self.combo_box_status.setCurrentIndex(1)
+                            if self.item['status_student'] == 'Закончил обучение':
+                                self.combo_box_status.setCurrentIndex(2)
+                            if self.item['status_student'] == 'Отказ':
+                                self.combo_box_status.setCurrentIndex(3)
                     if self.type_change == 'Занятия':
                         if self.date >= date.today().strftime("%Y-%m-%d"):
                             for status in self.future_statuses_lesson:
@@ -974,6 +1030,9 @@ class ChangePage(QWidget, Settings):
                         self.scroll_layout.addWidget(self.name_input)
                         self.name_input.setStyleSheet(
                             "background-color: #81b7f7; padding: 10px;")
+                        if self.item:
+                            self.name_input.setText(
+                                str(self.item['trainer_id']))
                     else:
                         self.combo_box_trainer = QComboBox()
                         self.trainers = await self.get_trainers()
@@ -1009,7 +1068,12 @@ class ChangePage(QWidget, Settings):
             else:
                 self.name_input = QLineEdit()
                 self.name_input.setPlaceholderText(elem)
-
+                if self.item:
+                    if elem == 'Пароль':
+                        pass
+                    else:
+                        self.name_input.setText(str(self.item[self.arr_data[self.type_change][i]]))
+                        i += 1
                 self.scroll_layout.addWidget(self.name_input_label)
                 self.scroll_layout.addWidget(self.name_input)
                 self.name_input.setStyleSheet("background-color: #81b7f7")
@@ -1056,6 +1120,15 @@ class ChangePage(QWidget, Settings):
             "Платежи": self.create_payment,
         }
 
+        self.data_updates = {
+            "Менеджеры": self.update_manager,
+            "Курсанты": self.update_student,
+            "Инструкторы": self.update_trainer,
+            "Автомобили": self.update_car,
+            "Занятия": self.update_lesson,
+            "Платежи": self.update_payment
+        }
+
         arr_fields = []
         for child in self.scroll_content.children():
             if isinstance(child, QLineEdit):
@@ -1073,21 +1146,28 @@ class ChangePage(QWidget, Settings):
             if isinstance(child, QCheckBox):
                 text = child.isChecked()
                 arr_fields.append(int(text))
-    
-        arr_fields.append(self.label_name_object_input.text())
 
+        arr_fields.append(self.label_name_object_input.text())
         try:
             for button in self.buttons:
                 if button.isChecked():
                     current_button = button.text()
+            if self.item:
+                update_func = self.data_updates.get(self.type_change)
+                arr_fields.append(self.item['desc_object'])
+                await update_func(*arr_fields)
+            else:    
+                create_func = self.create_data.get(current_button)
 
-            create_func = self.create_data.get(current_button)
-
-            await create_func(*arr_fields)
+                await create_func(*arr_fields)
 
         except Exception as e:
-            self.show_error_message(
-                "Ошибка добавления объекта", f"Возникла ошибка, объект не добавлен: {str(e)}")
+            if self.item:
+                self.show_error_message(
+                    "Ошибка обновления объекта", f"Возникла ошибка, объект не обновлен: {str(e)}")
+            else:
+                self.show_error_message(
+                    "Ошибка добавления объекта", f"Возникла ошибка, объект не добавлен: {str(e)}")
 
         for button in self.buttons:
             if button.isChecked():
