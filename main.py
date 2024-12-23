@@ -268,16 +268,11 @@ class MainPage(QWidget, Settings):
 
         self.button_add.clicked.connect(self.add_manager)
 
-    def add_manager(self):
-        main_widget = ChangePage(self.stack, 'Менеджеры', self.buttons)
-        self.stack.addWidget(main_widget)
-        self.stack.setCurrentWidget(main_widget)
-
     def create_page_manager(self):
 
         self.timer = QTimer()
         self.timer.timeout.connect(self.update_info_manager)
-        self.timer.start(10000)
+        self.timer.start(5000)
 
         self.menu_v_layout = QVBoxLayout()
         self.menu_h_layout = QHBoxLayout()
@@ -298,14 +293,12 @@ class MainPage(QWidget, Settings):
         self.menu_h_layout.addWidget(self.label_vhod)
         self.menu_v_layout.addLayout(self.menu_h_layout)
 
-        self.label_information1 = QLabel(f"""Количество 
-инструкторов: 
-{self.count_instructors}""")
+        self.label_information1 = QLabel(
+            f"Количество\nинструкторов:\n{self.count_instructors}")
         self.label_information1.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.label_information1.setObjectName("label_info1")
-        self.label_information2 = QLabel(f"""Количество
-курсантов:
-{self.count_students}""")
+        self.label_information2 = QLabel(
+            f"Количество\nкурсантов:\n{self.count_students}")
         self.label_information2.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.label_information2.setObjectName("label_info2")
 
@@ -329,91 +322,89 @@ class MainPage(QWidget, Settings):
 
         self.count_instructors = self.instructors[0]['count_trainer']
         self.count_students = self.students[0]['count_student']
-        self.label_information1.setText(f"""Количество 
-инструкторов: 
-{self.count_instructors}"""
-                                        )
-        self.label_information2.setText(f"""Количество 
-курсантов: 
-{self.count_students}""")
+        self.label_information1.setText(
+            f"Количество\nинструкторов:\n{self.count_instructors}")
+        self.label_information2.setText(
+            f"Количество\nкурсантов:\n{self.count_students}")
         self.label_information1.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.label_information2.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
     @asyncSlot()
     async def update_info_admin(self):
-        current_items = []
-        for i in range(self.list_widget.count()):
-            item = self.list_widget.item(i)
-            widget = self.list_widget.itemWidget(
-                item).layout().itemAt(0).widget().text()
-            current_items.append(widget)
+        # Получаем текущие элементы списка
+        current_items = [self.list_widget.item(i).data(
+            Qt.ItemDataRole.UserRole) for i in range(self.list_widget.count())]
 
+        # Получаем актуальные данные
         self.managers = await self.get_managers()
         self.instructors = await self.get_count_trainers()
         self.students = await self.get_count_students()
-
         self.count_instructors = self.instructors[0]['count_trainer']
         self.count_students = self.students[0]['count_student']
-        self.label_information1.setText(f"""Количество 
-инструкторов: 
-{self.count_instructors}"""
-                                        )
-        self.label_information2.setText(f"""Количество 
-курсантов: 
-{self.count_students}"""
-                                        )
-        self.label_information1.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.label_information2.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.label_information1.setText(
+            f"Количество\nинструкторов:\n{self.count_instructors}")
+        self.label_information2.setText(
+            f"Количество\nкурсантов:\n{self.count_students}")
 
-        manager_names = [item["desc_object"] for item in self.managers]
+        manager_ids = [manager["id_user"] for manager in self.managers]
+
         items_to_add = [
-            name for name in manager_names if name not in current_items]
-        items_to_remove = [
-            name for name in current_items if name not in manager_names]
+            manager for manager in self.managers if manager["id_user"] not in current_items]
+        items_to_remove = [i for i, item in enumerate(
+            current_items) if item not in manager_ids]
 
-        for item in items_to_add:
+        # Удаляем старые элементы
+        for index in sorted(items_to_remove, reverse=True):
+            self.list_widget.takeItem(index)
+
+        # Добавляем новые элементы
+        for manager in items_to_add:
+            manager_id = manager["id_user"]
+            manager_name = manager["desc_object"]
+
             item_widget = QWidget()
             layout = QHBoxLayout()
-
-            spacer = QSpacerItem(
-                40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
-
-            name_label = QLabel(f"{item}")
-            layout.addWidget(name_label)
+            name_label = QLabel(manager_name)
 
             edit_button = QPushButton()
             edit_button.setIcon(QIcon("./src/img/pencil.svg"))
             edit_button.setIconSize(QSize(24, 24))
             edit_button.setCursor(Qt.CursorShape.PointingHandCursor)
-            edit_button.clicked.connect(lambda _, m=item: self.edit_manager(m))
+            edit_button.clicked.connect(
+                lambda _, m=manager_id: self.edit_manager(m))
 
             delete_button = QPushButton()
             delete_button.setIcon(QIcon("./src/img/trash.svg"))
             delete_button.setIconSize(QSize(24, 24))
             delete_button.setCursor(Qt.CursorShape.PointingHandCursor)
             delete_button.clicked.connect(
-                lambda _, m=item: self.drop_manager(m))
+                lambda _, m=manager_id: self.drop_manager(m))
 
             layout.addWidget(name_label)
-            layout.addItem(spacer)
+            layout.addStretch()
             layout.addWidget(edit_button)
             layout.addWidget(delete_button)
-
             item_widget.setLayout(layout)
 
-            item = QListWidgetItem()
-            item.setSizeHint(item_widget.sizeHint())
-            self.list_widget.addItem(item)
-            self.list_widget.setItemWidget(item, item_widget)
+            list_item = QListWidgetItem()
+            list_item.setSizeHint(item_widget.sizeHint())
+            list_item.setData(Qt.ItemDataRole.UserRole, manager_id)
 
-        # Проходим с конца, чтобы индексы не смещались
-        for i in range(self.list_widget.count() - 1, -1, -1):
-            item = self.list_widget.item(i)
-            widget = self.list_widget.itemWidget(
-                item).layout().itemAt(0).widget().text()
+            self.list_widget.addItem(list_item)
+            self.list_widget.setItemWidget(list_item, item_widget)
 
-            if widget in items_to_remove:
-                self.list_widget.takeItem(i)
+    def add_manager(self):
+        date = None
+        time = None
+        trainer = None
+        manager = None
+        for button in self.buttons:
+            if button.isChecked():
+                self.type_object = button.text()
+        main_widget = ChangePage(
+            self.stack, 'Менеджеры', self.buttons, date, time, trainer, manager)
+        self.stack.addWidget(main_widget)
+        self.stack.setCurrentWidget(main_widget)
 
     def edit_manager(self, manager):
         date = None
@@ -448,7 +439,6 @@ class CadTeachPayCarPage(QWidget, Settings):
         }
 
     def create_page(self):
-
         self.timer = QTimer()
         self.timer.timeout.connect(self.update_info)
         self.timer.start(3000)
@@ -456,9 +446,9 @@ class CadTeachPayCarPage(QWidget, Settings):
         self.menu_v_layout = QVBoxLayout()
         self.menu_h_layout = QHBoxLayout()
 
-        spacerItem = QSpacerItem(
+        spacer_vertical = QSpacerItem(
             40, 20, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding)
-        spacerItem1 = QSpacerItem(
+        spacer_horizontal = QSpacerItem(
             40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
 
         self.button_add = QPushButton("Добавить")
@@ -468,7 +458,7 @@ class CadTeachPayCarPage(QWidget, Settings):
         self.list_widget = QListWidget()
 
         self.menu_v_layout.addWidget(self.button_add)
-        self.menu_v_layout.addItem(spacerItem)
+        self.menu_v_layout.addItem(spacer_vertical)
 
         self.menu_h_layout.addLayout(self.menu_v_layout)
         self.menu_h_layout.addWidget(self.list_widget)
@@ -476,17 +466,6 @@ class CadTeachPayCarPage(QWidget, Settings):
         self.setLayout(self.menu_h_layout)
 
         self.update_info()
-
-    def add_object(self):
-        date = None
-        time = None
-        for button in self.buttons:
-            if button.isChecked():
-                self.type_object = button.text()
-        main_widget = ChangePage(
-            self.stack, self.type_object, self.buttons, date, time)
-        self.stack.addWidget(main_widget)
-        self.stack.setCurrentWidget(main_widget)
 
     @asyncSlot()
     async def update_info(self):
@@ -505,33 +484,39 @@ class CadTeachPayCarPage(QWidget, Settings):
         self.populate_list_widget()
 
     def populate_list_widget(self):
-        current_items = [self.list_widget.itemWidget(self.list_widget.item(i))
-                         .layout().itemAt(0).widget().text()
-                         for i in range(self.list_widget.count())]
+        # Получаем текущие элементы из списка
+        current_items = [
+            self.list_widget.item(i).data(Qt.ItemDataRole.UserRole)
+            for i in range(self.list_widget.count())
+        ]
 
-        manager_names = [item["desc_object"] for item in self.object]
+        # Подготовка данных для добавления и удаления
+        manager_ids = [item['id'] for item in self.object]
         items_to_add = [
-            name for name in manager_names if name not in current_items]
+            item for item in self.object if item['id'] not in current_items]
         items_to_remove = [
-            name for name in current_items if name not in manager_names]
+            item_id for item_id in current_items if item_id not in manager_ids]
 
         # Добавляем новые элементы
         for item in items_to_add:
             item_widget = self.create_list_widget_item(item)
             list_item = QListWidgetItem()
             list_item.setSizeHint(item_widget.sizeHint())
+            list_item.setData(Qt.ItemDataRole.UserRole, item['id'])
             self.list_widget.addItem(list_item)
             self.list_widget.setItemWidget(list_item, item_widget)
 
         # Удаляем старые элементы
         for i in range(self.list_widget.count() - 1, -1, -1):
-            item = self.list_widget.item(i)
-            widget = self.list_widget.itemWidget(
-                item).layout().itemAt(0).widget().text()
-            if widget in items_to_remove:
+            list_item = self.list_widget.item(i)
+            item_id = list_item.data(Qt.ItemDataRole.UserRole)
+            if item_id in items_to_remove:
                 self.list_widget.takeItem(i)
 
-    def create_list_widget_item(self, item_name):
+    def create_list_widget_item(self, item):
+        item_name = item['desc_object']
+        item_id = item['id']
+
         item_widget = QWidget()
         layout = QHBoxLayout()
         spacer = QSpacerItem(
@@ -544,13 +529,13 @@ class CadTeachPayCarPage(QWidget, Settings):
         edit_button.setIcon(QIcon("./src/img/pencil.svg"))
         edit_button.setIconSize(QSize(24, 24))
         edit_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        edit_button.clicked.connect(lambda: self.edit_object(item_name))
+        edit_button.clicked.connect(lambda: self.edit_object(item_id))
 
         delete_button = QPushButton()
         delete_button.setIcon(QIcon("./src/img/trash.svg"))
         delete_button.setIconSize(QSize(24, 24))
         delete_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        delete_button.clicked.connect(lambda: self.delete_object(item_name))
+        delete_button.clicked.connect(lambda: self.delete_object(item_id))
 
         layout.addWidget(name_label)
         layout.addItem(spacer)
@@ -560,8 +545,7 @@ class CadTeachPayCarPage(QWidget, Settings):
         item_widget.setLayout(layout)
         return item_widget
 
-    @asyncSlot()
-    async def edit_object(self, item_name):
+    def add_object(self):
         date = None
         time = None
         trainer = None
@@ -569,18 +553,32 @@ class CadTeachPayCarPage(QWidget, Settings):
             if button.isChecked():
                 self.type_object = button.text()
         main_widget = ChangePage(
-            self.stack, self.type_object, self.buttons, date, time, trainer, item_name)
+            self.stack, self.type_object, self.buttons, date, time, trainer, None)
         self.stack.addWidget(main_widget)
         self.stack.setCurrentWidget(main_widget)
 
     @asyncSlot()
-    async def delete_object(self, item_name):
+    async def edit_object(self, item_id):
+        date = None
+        time = None
+        trainer = None
+        for button in self.buttons:
+            if button.isChecked():
+                self.type_object = button.text()
+        main_widget = ChangePage(
+            self.stack, self.type_object, self.buttons, date, time, trainer, item_id)
+        self.stack.addWidget(main_widget)
+        self.stack.setCurrentWidget(main_widget)
+
+    @asyncSlot()
+    async def delete_object(self, item_id):
         self.delete_data = {
             "Курсанты": self.delete_student,
             "Инструкторы": self.delete_trainer,
             "Автомобили": self.delete_car,
             "Платежи": self.delete_payment
         }
+
         try:
             for button in self.buttons:
                 if button.isChecked():
@@ -588,7 +586,7 @@ class CadTeachPayCarPage(QWidget, Settings):
 
             delete_func = self.delete_data.get(current_button)
 
-            await delete_func(item_name)
+            await delete_func(item_id)
 
         except Exception as e:
             self.show_error_message(
@@ -666,10 +664,11 @@ class LessonsPage(QWidget, Settings):
         self.teach_list.clear()
         for instructor in instructors:
             item = QListWidgetItem(instructor['desc_object'])
+            item.setData(Qt.ItemDataRole.UserRole, instructor['id'])
             self.teach_list.addItem(item)
 
     def on_instructor_selected(self, item):
-        self.selected_instructor = item.text()
+        self.selected_instructor = item.data(Qt.ItemDataRole.UserRole)
         self.update_calendar()
 
     @asyncSlot()
@@ -878,20 +877,20 @@ class ChangePage(QWidget, Settings):
         self.type_change = type_change
         self.buttons = buttons
 
-        self.arr_data = {"Курсанты":['surname', 'name', 'patronymic', 'login', 'number_phone'],
-        "Менеджеры":['surname','name','patronymic','login'],
-        "Инструкторы":['surname', 'name', 'patronymic', 'login'],
-        "Автомобили":['brand','number'],
-        "Занятия":[],
-        "Платежи":['amount', 'date_payment']}
+        self.arr_data = {"Курсанты": ['surname', 'name', 'patronymic', 'login', 'number_phone'],
+                         "Менеджеры": ['surname', 'name', 'patronymic', 'login'],
+                         "Инструкторы": ['surname', 'name', 'patronymic', 'login'],
+                         "Автомобили": ['brand', 'number'],
+                         "Занятия": [],
+                         "Платежи": ['amount', 'date_payment']}
 
         self.data_loaders = {
-            "Менеджеры": self.get_manager_by_desc,
-            "Курсанты": self.get_student_by_desc,
-            "Инструкторы": self.get_trainer_by_desc,
-            "Автомобили": self.get_car_by_desc,
+            "Менеджеры": self.get_manager_by_id,
+            "Курсанты": self.get_student_by_id,
+            "Инструкторы": self.get_trainer_by_id,
+            "Автомобили": self.get_car_by_id,
             "Занятия": self.get_lesson_by_trainer_date_time,
-            "Платежи": self.get_payment_by_desc,
+            "Платежи": self.get_payment_by_id
         }
 
         self.page_mapping = {
@@ -908,16 +907,17 @@ class ChangePage(QWidget, Settings):
 
     @asyncSlot()
     async def create_page(self):
-        self.trainer = 25
         if self.item:
             load_fun = self.data_loaders[self.type_change]
             self.item = await load_fun(self.item)
-            self.item = self.item[0]
+            if self.item:
+                self.item = self.item[0]
 
         elif self.type_change == "Занятия":
             load_fun = self.data_loaders[self.type_change]
             self.item = await load_fun(self.trainer, self.date, self.time)
-            self.item = self.item[0]
+            if self.item:
+                self.item = self.item[0]
 
         self.menu_h_layout = QHBoxLayout()
         self.menu_v_layout = QVBoxLayout()
@@ -998,14 +998,8 @@ class ChangePage(QWidget, Settings):
                         for status in self.statuses_stud:
                             self.combo_box_status.addItem(status)
                         if self.item:
-                            if self.item['status_student'] == 'Заявка':
-                                self.combo_box_status.setCurrentIndex(0)
-                            if self.item['status_student'] == 'Обучается':
-                                self.combo_box_status.setCurrentIndex(1)
-                            if self.item['status_student'] == 'Закончил обучение':
-                                self.combo_box_status.setCurrentIndex(2)
-                            if self.item['status_student'] == 'Отказ':
-                                self.combo_box_status.setCurrentIndex(3)
+                            self.combo_box_status.setCurrentText(
+                                self.item['status_student'])
                     if self.type_change == 'Занятия':
                         if self.date >= date.today().strftime("%Y-%m-%d"):
                             for status in self.future_statuses_lesson:
@@ -1024,7 +1018,7 @@ class ChangePage(QWidget, Settings):
                 if elem == 'Инструктор' and (self.type_change == 'Курсанты' or self.type_change == 'Занятия'):
                     if self.type_change == 'Занятия':
                         self.name_input = QLineEdit()
-                        self.name_input.setText("25")
+                        self.name_input.setText(str(self.trainer))
                         self.name_input.setEnabled(False)
                         self.scroll_layout.addWidget(self.name_input_label)
                         self.scroll_layout.addWidget(self.name_input)
@@ -1037,8 +1031,12 @@ class ChangePage(QWidget, Settings):
                         self.combo_box_trainer = QComboBox()
                         self.trainers = await self.get_trainers()
                         for trainer in self.trainers:
+                            # Добавляем пару (ID и desc_object)
                             self.combo_box_trainer.addItem(
-                                str(trainer['id_user']))
+                                f"{trainer['id']} - {trainer['desc_object']}")
+                        if self.item:
+                            self.combo_box_trainer.setCurrentText(
+                                f"{self.item['trainer_id']} - {self.item['desc_object']}")
                         self.scroll_layout.addWidget(self.name_input_label)
                         self.scroll_layout.addWidget(self.combo_box_trainer)
                         self.combo_box_trainer.setStyleSheet(
@@ -1048,7 +1046,12 @@ class ChangePage(QWidget, Settings):
                     self.combo_box_car = QComboBox()
                     self.cars = await self.get_cars()
                     for car in self.cars:
-                        self.combo_box_car.addItem(str(car['id_car']))
+                        # Добавляем пару (ID и desc_object)
+                        self.combo_box_car.addItem(
+                            f"{car['id']} - {car['desc_object']}")
+                    if self.item:
+                        self.combo_box_car.setCurrentText(
+                            f"{self.item['car_id']} - {self.item['desc_object']}")
                     self.scroll_layout.addWidget(self.name_input_label)
                     self.scroll_layout.addWidget(self.combo_box_car)
                     self.combo_box_car.setStyleSheet(
@@ -1058,7 +1061,11 @@ class ChangePage(QWidget, Settings):
                     self.combo_box_student = QComboBox()
                     self.students = await self.get_students()
                     for student in self.students:
-                        self.combo_box_student.addItem(str(student['id_user']))
+                        self.combo_box_student.addItem(
+                            f"{student['id']} - {student['desc_object']}")
+                    if self.item:
+                        self.combo_box_student.setCurrentText(
+                            f"{self.item['student_id']} - {self.item['desc_object']}")
                     self.scroll_layout.addWidget(self.name_input_label)
                     self.scroll_layout.addWidget(self.combo_box_student)
                     self.combo_box_student.setStyleSheet(
@@ -1072,7 +1079,8 @@ class ChangePage(QWidget, Settings):
                     if elem == 'Пароль':
                         pass
                     else:
-                        self.name_input.setText(str(self.item[self.arr_data[self.type_change][i]]))
+                        self.name_input.setText(
+                            str(self.item[self.arr_data[self.type_change][i]]))
                         i += 1
                 self.scroll_layout.addWidget(self.name_input_label)
                 self.scroll_layout.addWidget(self.name_input)
@@ -1096,6 +1104,12 @@ class ChangePage(QWidget, Settings):
         self.back_button.clicked.connect(self.back_to_manager_page)
 
         self.save_button.clicked.connect(self.save_changes)
+
+    def on_selection_change(self):
+        selected_index = self.combo_box_car.currentIndex()
+        selected_item = self.combo_box_car.itemText(selected_index)
+        car_id = selected_item.split(" - ")[0]  # Берем только ID
+        self.combo_box_car.setCurrentText(car_id)
 
     def back_to_manager_page(self):
 
@@ -1138,7 +1152,7 @@ class ChangePage(QWidget, Settings):
                     return
                 arr_fields.append(text)
             if isinstance(child, QComboBox):
-                text = child.currentText()
+                text = child.currentText().split(" - ")[0]
                 if not text:
                     self.show_error_message("Ошибка", "Заполните все поля")
                     return
@@ -1148,15 +1162,25 @@ class ChangePage(QWidget, Settings):
                 arr_fields.append(int(text))
 
         arr_fields.append(self.label_name_object_input.text())
+
+        data_id = {
+            'Главная': 'id_user',
+            'Курсанты': 'id_user',
+            'Инструкторы': 'id_user',
+            'Автомобили': 'id_car',
+            'Занятия': 'id_lesson',
+            'Платежи': 'id'
+        }
+
         try:
             for button in self.buttons:
                 if button.isChecked():
                     current_button = button.text()
             if self.item:
+                arr_fields.append(self.item[data_id[self.type_change]])
                 update_func = self.data_updates.get(self.type_change)
-                arr_fields.append(self.item['desc_object'])
                 await update_func(*arr_fields)
-            else:    
+            else:
                 create_func = self.create_data.get(current_button)
 
                 await create_func(*arr_fields)

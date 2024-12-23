@@ -197,7 +197,7 @@ class Settings():
 
     async def get_managers(self):
         sql = """
-            SELECT Managers.desc_object FROM Users
+            SELECT Managers.id_user, Managers.desc_object FROM Users
             INNER JOIN Managers ON Users.id_user = Managers.id_user
             WHERE role = 'Manager'
         """
@@ -205,7 +205,7 @@ class Settings():
 
     async def get_students(self):
         sql = """
-            SELECT * FROM Users
+            SELECT Users.id_user as id, Students.desc_object FROM Users
             INNER JOIN Students ON Users.id_user = Students.id_user
             WHERE role = 'Student'
         """
@@ -213,18 +213,18 @@ class Settings():
 
     async def get_trainers(self):
         sql = """
-            SELECT * FROM Users
+            SELECT Users.id_user as id, Trainers.desc_object FROM Users
             INNER JOIN Trainers ON Users.id_user = Trainers.id_user
             WHERE role = 'Trainer'
         """
         return await self.execute_query(sql)
 
     async def get_payments(self):
-        sql = "SELECT * FROM Payments"
+        sql = "SELECT Payments.id_payment as id, Payments.student_id, Payments.amount, Payments.date_payment, Payments.status_payment, Payments.desc_object FROM Payments"
         return await self.execute_query(sql)
 
     async def get_cars(self):
-        sql = "SELECT * FROM Cars"
+        sql = "SELECT Cars.id_car as id, Cars.brand, Cars.number, Cars.desc_object FROM Cars"
         return await self.execute_query(sql)
 
     async def get_lessons(self):
@@ -249,13 +249,13 @@ class Settings():
 
         return await self.execute_query(sql)
 
-    async def get_lessons_by_trainer(self, start_text, end_text, trainer_desc):
+    async def get_lessons_by_trainer(self, start_text, end_text, trainer_id):
 
         sql = """SELECT * FROM Lessons
                 WHERE date_lesson BETWEEN %s AND %s
-                AND trainer_id IN (SELECT id_user FROM Trainers WHERE desc_object = %s)"""
+                AND trainer_id = %s"""
 
-        return await self.execute_query(sql, (start_text, end_text, trainer_desc))
+        return await self.execute_query(sql, (start_text, end_text, trainer_id))
 
     async def get_count_lessons(self, start_text, end_text):
 
@@ -272,47 +272,47 @@ class Settings():
 
         return await self.execute_query(sql, (start_text, end_text))
 
-    async def get_student_by_desc(self, desc_object):
+    async def get_student_by_id(self, id_user):
 
-        sql = """SELECT Users.surname, Users.name, Users.patronymic, Users.login,Students.number_phone,Students.trainer_id, 
+        sql = """SELECT Users.id_user, Users.surname, Users.name, Users.patronymic, Users.login,Students.number_phone,Students.trainer_id, 
         Students.status_student, Students.desc_object FROM Users INNER JOIN Students 
-        ON Users.id_user = Students.id_user WHERE role = 'Student' AND Students.desc_object = %s"""
+        ON Users.id_user = Students.id_user WHERE role = 'Student' AND Users.id_user = %s"""
 
-        return await self.execute_query(sql, (desc_object,))
+        return await self.execute_query(sql, (id_user,))
 
-    async def get_manager_by_desc(self, desc_object):
+    async def get_manager_by_id(self, id_user):
 
-        sql = """SELECT Users.surname, Users.name, Users.patronymic, Users.login, 
+        sql = """SELECT Users.id_user, Users.surname, Users.name, Users.patronymic, Users.login, 
        Managers.desc_object FROM Users INNER JOIN Managers
-        ON Users.id_user = Managers.id_user WHERE role = 'Manager' AND Managers.desc_object = %s"""
+        ON Users.id_user = Managers.id_user WHERE role = 'Manager' AND Users.id_user = %s"""
 
-        return await self.execute_query(sql, (desc_object,))
+        return await self.execute_query(sql, (id_user))
 
-    async def get_trainer_by_desc(self, desc_object):
+    async def get_trainer_by_id(self, id_user):
 
-        sql = """SELECT Users.surname, Users.name, Users.patronymic, Users.login, Trainers.car_id, 
+        sql = """SELECT Users.id_user, Users.surname, Users.name, Users.patronymic, Users.login, Trainers.car_id, 
        Trainers.desc_object FROM Users INNER JOIN Trainers
-        ON Users.id_user = Trainers.id_user WHERE role = 'Trainer' AND Trainers.desc_object = %s"""
+        ON Users.id_user = Trainers.id_user WHERE role = 'Trainer' AND Users.id_user = %s"""
 
-        return await self.execute_query(sql, (desc_object,))
+        return await self.execute_query(sql, (id_user,))
 
-    async def get_car_by_desc(self, desc_object):
+    async def get_car_by_id(self, id_object):
 
-        sql = """SELECT Cars.brand, Cars.number, Cars.desc_object FROM Cars WHERE Cars.desc_object = %s"""
+        sql = """SELECT Cars.id_car, Cars.brand, Cars.number, Cars.desc_object FROM Cars WHERE Cars.id_car = %s"""
 
-        return await self.execute_query(sql, (desc_object,))
+        return await self.execute_query(sql, (id_object,))
 
     async def get_lesson_by_trainer_date_time(self, trainer_id, date, time):
 
-        sql = """SELECT Lessons.student_id, Lessons.trainer_id, Lessons.status_lesson, Lessons.additional, Lessons.desc_object FROM Lessons WHERE Lessons.trainer_id = %s AND Lessons.date_lesson = %s AND Lessons.time_lesson = %s"""
+        sql = """SELECT Lessons.id_lesson, Lessons.student_id, Lessons.trainer_id, Lessons.status_lesson, Lessons.additional, Lessons.desc_object FROM Lessons WHERE Lessons.trainer_id = %s AND Lessons.date_lesson = %s AND Lessons.time_lesson = %s"""
 
         return await self.execute_query(sql, (trainer_id, date, time))
 
-    async def get_payment_by_desc(self, desc_object):
+    async def get_payment_by_id(self, id_object):
 
-        sql = """SELECT Payments.student_id, Payments.amount, Payments.date_payment, Payments.status_payment, Payments.desc_object FROM Payments WHERE Payments.desc_object = %s"""
+        sql = """SELECT Payments.id_payment as id, Payments.student_id, Payments.amount, Payments.date_payment, Payments.status_payment, Payments.desc_object FROM Payments WHERE Payments.id_payment = %s"""
 
-        return await self.execute_query(sql, (desc_object,))
+        return await self.execute_query(sql, (id_object,))
 
 ### CREATE ###
 
@@ -370,79 +370,79 @@ class Settings():
 
 ### DELETE ###
 
-    async def delete_manager(self, desc_object):
+    async def delete_manager(self, id_manager):
 
-        sql = "DELETE Users FROM Users INNER JOIN Managers ON Users.id_user = Managers.id_user WHERE Managers.desc_object = %s"
+        sql = "DELETE Users FROM Users WHERE Users.id_user = %s"
 
-        await self.commit_query(sql, (desc_object))
+        await self.commit_query(sql, (id_manager))
 
-    async def delete_student(self, desc_object):
+    async def delete_student(self, id_user):
 
-        sql = "DELETE Users FROM Users INNER JOIN Students ON Users.id_user = Students.id_user WHERE Students.desc_object = %s"
+        sql = "DELETE Users FROM Users INNER JOIN Students ON Users.id_user = Students.id_user WHERE Users.id_user = %s"
 
-        await self.commit_query(sql, (desc_object))
+        await self.commit_query(sql, (id_user))
 
-    async def delete_trainer(self, desc_object):
+    async def delete_trainer(self, id_user):
 
-        sql = "DELETE Users FROM Users INNER JOIN Trainers ON Users.id_user = Trainers.id_user WHERE Trainers.desc_object = %s"
+        sql = "DELETE Users FROM Users INNER JOIN Trainers ON Users.id_user = Trainers.id_user WHERE Users.id_user = %s"
 
-        await self.commit_query(sql, (desc_object))
+        await self.commit_query(sql, (id_user))
 
-    async def delete_car(self, desc_object):
+    async def delete_car(self, id_object):
 
-        sql = "DELETE FROM Cars WHERE desc_object = %s"
+        sql = "DELETE FROM Cars WHERE id_car = %s"
 
-        await self.commit_query(sql, (desc_object))
+        await self.commit_query(sql, (id_object))
 
-    async def delete_payment(self, desc_object):
+    async def delete_payment(self, id_object):
 
-        sql = "DELETE FROM Payments WHERE desc_object = %s"
+        sql = "DELETE FROM Payments WHERE id_payment = %s"
 
-        await self.commit_query(sql, (desc_object))
+        await self.commit_query(sql, (id_object))
 
 ### UPDATE ###
 
-    async def update_manager(self, surname, name, patronymic, login, password, desc_object, current_desc_object):
+    async def update_manager(self, surname, name, patronymic, login, password, desc_object, id_user):
 
         password = self.hash_password(password)
 
-        sql = """UPDATE Users SET surname = %s, name = %s, patronymic = %s, login = %s, password = %s WHERE id_user IN (SELECT id_user FROM Managers WHERE desc_object = %s);
-                UPDATE Managers SET desc_object = %s WHERE desc_object = %s"""
+        sql = """UPDATE Users SET surname = %s, name = %s, patronymic = %s, login = %s, password = %s WHERE id_user = %s;
+                UPDATE Managers SET desc_object = %s WHERE id_user = %s"""
 
-        await self.commit_query(sql, (surname, name, patronymic, login, password, current_desc_object, desc_object, current_desc_object))
+        await self.commit_query(sql, (surname, name, patronymic, login, password, id_user, desc_object, id_user))
 
-    async def update_student(self, surname, name, patronymic, login, password, num_phone, trainer, status, desc_object, current_desc_object):
-
-        password = self.hash_password(password)
-
-        sql = """UPDATE Users SET surname = %s, name = %s, patronymic = %s, login = %s, password = %s WHERE id_user IN (SELECT id_user FROM Students WHERE desc_object = %s);
-                UPDATE Students SET number_phone = %s, trainer_id = %s, status_student = %s, desc_object = %s WHERE desc_object = %s"""
-
-        await self.commit_query(sql, (surname, name, patronymic, login, password, current_desc_object, num_phone, trainer, status, desc_object, current_desc_object))
-
-    async def update_trainer(self, surname, name, patronymic, login, password, car, desc_object, current_desc_object):
+    async def update_student(self, surname, name, patronymic, login, password, num_phone, trainer, status, desc_object, id_user):
 
         password = self.hash_password(password)
 
-        sql = """UPDATE Users SET surname = %s, name = %s, patronymic = %s, login = %s, password = %s WHERE id_user IN (SELECT id_user FROM Trainers WHERE desc_object = %s);
-                UPDATE Trainers SET car_id = %s, desc_object = %s WHERE desc_object = %s"""
+        sql = """UPDATE Users SET surname = %s, name = %s, patronymic = %s, login = %s, password = %s WHERE id_user = %s;
+                UPDATE Students SET number_phone = %s, trainer_id = %s, status_student = %s, desc_object = %s WHERE id_user = %s"""
 
-        await self.commit_query(sql, (surname, name, patronymic, login, password, current_desc_object, car, desc_object, current_desc_object))
+        await self.commit_query(sql, (surname, name, patronymic, login, password, id_user, num_phone, trainer, status, desc_object, id_user))
 
-    async def update_car(self, desc_object, brand, number, current_desc_object):
+    async def update_trainer(self, surname, name, patronymic, login, password, car, desc_object, id_user):
 
-        sql = "UPDATE Cars SET brand = %s, number = %s, desc_object = %s WHERE desc_object = %s"
+        password = self.hash_password(password)
 
-        await self.commit_query(sql, (brand, number, desc_object, current_desc_object))
+        sql = """UPDATE Users SET surname = %s, name = %s, patronymic = %s, login = %s, password = %s WHERE id_user = %s;
+                UPDATE Trainers SET car_id = %s, desc_object = %s WHERE id_user = %s"""
 
-    async def update_payment(self, student_id, amount, date_payment, status_payment, desc_object, current_desc_object):
+        await self.commit_query(sql, (surname, name, patronymic, login, password, id_user, car, desc_object, id_user))
 
-        sql = "UPDATE Payments SET student_id = %s, amount = %s, date_payment = %s, status_payment = %s, desc_object = %s WHERE desc_object = %s"
+    async def update_car(self, desc_object, brand, number, id_object):
 
-        await self.commit_query(sql, (student_id, amount, date_payment, status_payment, desc_object, current_desc_object))
+        sql = "UPDATE Cars SET brand = %s, number = %s, desc_object = %s WHERE id_car = %s"
 
-    async def update_lesson(self, student_id, trainer_id, date, time, status, additional, desc_object, current_desc_object):
+        await self.commit_query(sql, (brand, number, desc_object, id_object))
 
-        sql = "UPDATE Lessons SET student_id = %s, trainer_id = %s, date_lesson = %s, time_lesson = %s, status_lesson = %s, additional = %s, desc_object = %s WHERE desc_object = %s"
+    async def update_payment(self, student_id, amount, date_payment, status_payment, desc_object, id_object):
 
-        await self.commit_query(sql, (student_id, trainer_id, date, time, status, additional, desc_object, current_desc_object))
+        sql = "UPDATE Payments SET student_id = %s, amount = %s, date_payment = %s, status_payment = %s, desc_object = %s WHERE id_payment = %s"
+
+        await self.commit_query(sql, (student_id, amount, date_payment, status_payment, desc_object, id_object))
+
+    async def update_lesson(self, student_id, trainer_id, date, time, status, additional, desc_object, id_object):
+
+        sql = "UPDATE Lessons SET student_id = %s, trainer_id = %s, date_lesson = %s, time_lesson = %s, status_lesson = %s, additional = %s, desc_object = %s WHERE id_lesson = %s"
+
+        await self.commit_query(sql, (student_id, trainer_id, date, time, status, additional, desc_object, id_object))
